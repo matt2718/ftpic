@@ -13,7 +13,7 @@ double DX;
 
 // particle number and properties
 const int PART_NUM = 50000;
-const double PART_MASS = 1.0;
+const double PART_MASS = 0.004;
 const double PART_CHARGE = -0.01;
 const double EPS_0 = 1.0;
 
@@ -68,10 +68,12 @@ int main(int argc, char **argv) {
 	qdspSetPointColor(phasePlot, 0x000000);
 	qdspSetBGColor(phasePlot, 0xffffff);
 
+	qdspSetFramerate(phasePlot, 100);
+	
 	QDSPplot *phiPlot = qdspInit("Phi(x)");
-	qdspSetBounds(phiPlot, 0, XMAX, -10000, 10000);
+	qdspSetBounds(phiPlot, 0, XMAX, -50, 50);
 	qdspSetGridX(phiPlot, 0, 2, 0x888888);
-	qdspSetGridY(phiPlot, 0, 2000, 0x888888);
+	qdspSetGridY(phiPlot, 0, 10, 0x888888);
 	qdspSetConnected(phiPlot, 1);
 	qdspSetPointColor(phiPlot, 0x000000);
 	qdspSetBGColor(phiPlot, 0xffffff);
@@ -83,7 +85,7 @@ int main(int argc, char **argv) {
 	qdspSetConnected(rhoPlot, 1);
 	qdspSetPointColor(rhoPlot, 0x000000);
 	qdspSetBGColor(rhoPlot, 0xffffff);
-	
+
 	double *xar = malloc(NGRID * sizeof(double));
 	for (int j = 0; j < NGRID; j++) xar[j] = j * DX;
 	
@@ -96,7 +98,7 @@ int main(int argc, char **argv) {
 	int open = 1;
 	int phiOn = 1;
 	int rhoOn = 1;
-
+	
 	printf("time,potential,kinetic,total,momentum\n");
 	
 	for (int n = 0; open ; n++) {
@@ -117,6 +119,7 @@ int main(int argc, char **argv) {
 			       potential + kinetic,
 			       momentum(v));
 		}
+
 		if (phiOn) phiOn = qdspUpdateIfReady(phiPlot, xar, phi, NULL, NGRID);
 		if (rhoOn) rhoOn = qdspUpdateIfReady(rhoPlot, xar, rho, NULL, NGRID);
 
@@ -196,7 +199,10 @@ void deposit(double *x, double *rho) {
 // determines E and phi from rho
 void fields(double *rho, double *e, double *phi, double *potential) {
 	// rho(x) -> rho(k)
-	memcpy(rhoxBuf, rho, NGRID * sizeof(double));
+	for (int j = 0; j < NGRID; j++) {
+		// nomalization
+		rhoxBuf[j] = rho[j] / NGRID;
+	}
 	fftw_execute(rhoFFT);
 
 	// rho(k) -> phi(k)
@@ -217,7 +223,7 @@ void fields(double *rho, double *e, double *phi, double *potential) {
 			pot += phikBuf[j][0] * rhokBuf[j][0] +
 				phikBuf[j][1] * rhokBuf[j][1];
 		}
-		*potential = pot / XMAX;
+		*potential = pot / DX;
 	}
 
 	// phi(k) -> phi(x)
