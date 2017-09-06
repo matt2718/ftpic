@@ -9,11 +9,11 @@
 
 const double XMAX = 16.0; // system length
 const int NGRID = 256; // grid size
-double DX;
+double DX, SBOUND;
 
 // particle number and properties
-const int PART_NUM = 1000;
-const double PART_MASS = 1.0;
+const int PART_NUM = 40000;
+const double PART_MASS = 0.004;
 const double PART_CHARGE = -0.01;
 const double EPS_0 = 1.0;
 
@@ -21,10 +21,16 @@ const double EPS_0 = 1.0;
 const double DT = 0.0005;
 const double NMAX = 1000;
 
+const int FINE = 1;
+
 // fft plans and buffers
 fftw_plan phiIFFT;
 fftw_complex *phikBuf;
 double *phixBuf;
+
+fftw_plan fineRhoFFT;
+fftw_complex *fineRhokBuf;
+double *fineRhoxBuf;
 
 double shape(double x);
 void init(double *x, double *v, int *color);
@@ -38,8 +44,17 @@ void vHalfPush(double *x, double *v, double *e, int forward);
 double kineticEnergy(double *v);
 double momentum(double *v);
 
+static void dump(double *x, double *rho, double *e, double *phi) {
+	FILE *file = fopen("/home/msm/asdf.csv", "w");
+	for (int j = 0; j < NGRID; j++)
+		fprintf(file, "%f,%f,%f,%f\n", x[j], rho[j], e[j], phi[j]);
+	fclose(file);
+}
+
 int main(int argc, char **argv) {
 	DX = XMAX / NGRID;
+	SBOUND = 5*DX;
+
 	// allocate memory
 	double *x = malloc(PART_NUM * sizeof(double));
 	double *v = malloc(PART_NUM * sizeof(double));
@@ -56,11 +71,14 @@ int main(int argc, char **argv) {
 	// transform buffers
 	phikBuf = fftw_malloc(NGRID * sizeof(fftw_complex));
 	phixBuf = fftw_malloc(NGRID * sizeof(double));
+	fineRhokBuf = fftw_malloc(FINE * NGRID * sizeof(fftw_complex));
+	fineRhoxBuf = fftw_malloc(FINE * NGRID * sizeof(double));
 	
 	// plan transforms
 	fftw_plan rhoIFFT = fftw_plan_dft_c2r_1d(NGRID, rhok, rhox, FFTW_MEASURE);
 	phiIFFT = fftw_plan_dft_c2r_1d(NGRID, phikBuf, phixBuf, FFTW_MEASURE);
-
+	fineRhoFFT = fftw_plan_dft_r2c_1d(FINE * NGRID, fineRhoxBuf, fineRhokBuf, FFTW_MEASURE);
+	
 	// determine s(k)
 	double sxsum = 0;
 	for (int j = 0; j < NGRID; j++) {
@@ -95,9 +113,9 @@ int main(int argc, char **argv) {
 	qdspSetBGColor(phiPlot, 0xffffff);
 
 	QDSPplot *rhoPlot = qdspInit("Rho(x)");
-	qdspSetBounds(rhoPlot, 0, XMAX, -1000, 1000);
+	qdspSetBounds(rhoPlot, 0, XMAX, -10000, 10000);
 	qdspSetGridX(rhoPlot, 0, 2, 0x888888);
-	qdspSetGridY(rhoPlot, 0, 200, 0x888888);
+	qdspSetGridY(rhoPlot, 0, 2000, 0x888888);
 	qdspSetConnected(rhoPlot, 1);
 	qdspSetPointColor(rhoPlot, 0x000000);
 	qdspSetBGColor(rhoPlot, 0xffffff);
@@ -118,9 +136,15 @@ int main(int argc, char **argv) {
 	printf("time,potential,kinetic,total,momentum\n");
 	
 	for (int n = 0; open; n++) {
+		//		getchar();
 		deposit(x, rhok, sk);
 		fields(rhok, sk, ex, phix, &potential);
 
+		if (n == 0) {
+			fftw_execute(rhoIFFT);
+			//dump(xar, rhox, ex, phix);
+		}
+		
 		vHalfPush(x, v, ex, 1);
 		open = qdspUpdateIfReady(phasePlot, x, v, color, PART_NUM);
 		// logging
@@ -157,9 +181,15 @@ int main(int argc, char **argv) {
 	fftw_free(sx);
 	fftw_free(sk);
 
+	fftw_free(phikBuf);
+	fftw_free(phixBuf);
+	fftw_free(fineRhokBuf);
+	fftw_free(fineRhoxBuf);
+	
 	fftw_destroy_plan(phiIFFT);
 	fftw_destroy_plan(rhoIFFT);
-
+	fftw_destroy_plan(fineRhoFFT);
+	
 	qdspDelete(phasePlot);
 	qdspDelete(phiPlot);
 	qdspDelete(rhoPlot);
@@ -169,9 +199,11 @@ int main(int argc, char **argv) {
 
 // particle shape function, centered at 0, gaussian in this case
 double shape(double x) {
-	//const double sigma = 0.05;
-	//return exp(-x*x / (2 * sigma * sigma)) / sqrt(2 * M_PI * sigma * sigma);
-	return 30 * (fabs(x) < 3*DX);
+	//if (x < -SBOUND || SBOUND < x) return 0;
+	//else return PART_CHARGE/DX * exp(-pow(x/DX, 2) / 2) / sqrt(2 * M_PI);
+
+	if (x < -DX || DX < x) return 0;
+	else return (1 - fabs(x/DX)) * PART_CHARGE / DX;
 }
 
 void init(double *x, double *v, int *color) {
@@ -194,42 +226,45 @@ void init(double *x, double *v, int *color) {
 	}
 }
 
-// determines rho(k) from list of particle positions
 void deposit(double *x, fftw_complex *rhok, fftw_complex *sk) {
-	#pragma omp parallel for
-	for (int j = 0; j < NGRID; j++) {
-		double k = (2 * M_PI / XMAX) * j;
-		double real = 0;
-		double imag = 0;
-		for (int i = 0; i < PART_NUM; i++) {
-			real += PART_CHARGE * cos(k * x[i]);
-			imag -= PART_CHARGE * sin(k * x[i]);
+	double FDX = DX / FINE;
+	int FGRID = FINE * NGRID;
+
+	// neutralizing bg
+	for (int j = 0; j < FGRID; j++)
+		fineRhoxBuf[j] = -PART_NUM * PART_CHARGE / XMAX;
+	
+	// deposit
+	for (int i = 0; i < PART_NUM; i++) {
+		int jmin = (x[i] - SBOUND) / FDX;
+		int jmax = (x[i] + SBOUND) / FDX;
+		for (int j = jmin; j <= jmax; j++) {
+			int idx = (j + FGRID) % FGRID;
+			fineRhoxBuf[idx] += shape(j * FDX - x[i]);
 		}
-		rhok[j][0] = real * sk[j][0] - imag * sk[j][1];
-		rhok[j][1] = real * sk[j][1] + imag * sk[j][0];
 	}
+	
+	// transform rho(xf) -> rho(kf)
+	fftw_execute(fineRhoFFT);
 
-	// background
-	rhok[0][0] = 0;
+	// downsample
+	memcpy(rhok, fineRhokBuf, NGRID * sizeof(fftw_complex));
 }
-
 
 void fields(fftw_complex *rhok, fftw_complex *sk, double *e, double *phi,
             double *potential) {
-	
 	// rho(k) -> phi(k)
 	phikBuf[0][0] = 0;
 	phikBuf[0][1] = 0;
 	for (int j = 1; j < NGRID; j++) {
 		double k = 2 * M_PI * j / XMAX;
 		
-		double phikRe = rhok[j][0] / (k * k * EPS_0);
-		double phikIm = rhok[j][1] / (k * k * EPS_0);
+		double phikRe = rhok[j][0] / (k * k * EPS_0 * FINE * NGRID);
+		double phikIm = rhok[j][1] / (k * k * EPS_0 * FINE * NGRID);
 
-		phikBuf[j][0] = sk[j][0] * phikRe - sk[j][1] * phikIm;
-		phikBuf[j][1] = sk[j][0] * phikIm + sk[j][1] * phikRe;
+		phikBuf[j][0] = phikRe * sk[j][0] - phikIm * sk[j][1];
+		phikBuf[j][1] = phikIm * sk[j][1] + phikIm * sk[j][0];
 	}
-
 
 	// find PE
 	if (potential != NULL) {
@@ -262,6 +297,7 @@ void xPush(double *x, double *v) {
 		// lengths in 1 timestep, something has gone horribly wrong)
 		if (x[i] < 0) x[i] += XMAX;
 		if (x[i] >= XMAX) x[i] -= XMAX;
+		x[i] = x[i];
 	}
 }
 
