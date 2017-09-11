@@ -5,7 +5,10 @@
 #include <fftw3.h>
 #include <omp.h>
 
-#include "qdsp.h"
+#include <qdsp.h>
+
+// max run time
+const double TMAX = 20.0;
 
 const double XMAX = 16.0; // system length
 const int NGRID = 256; // grid size
@@ -101,7 +104,7 @@ int main(int argc, char **argv) {
 	
 	printf("time,potential,kinetic,total,momentum\n");
 	
-	for (int n = 0; open ; n++) {
+	for (int n = 0; open && n * DT < TMAX; n++) {
 		deposit(x, rho);
 		fields(rho, eField, phi, &potential);
 
