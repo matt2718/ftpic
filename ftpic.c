@@ -8,7 +8,7 @@
 #include <qdsp.h>
 
 // max run time
-const double TMAX = 20.0;
+const double TMAX = 5.0;
 
 const double XMAX = 16.0; // system length
 const int NGRID = 256; // grid size
@@ -24,7 +24,7 @@ const double EPS_0 = 1.0;
 const double DT = 0.0005;
 const double NMAX = 1000;
 
-const int FINE = 1;
+const int FINE = 4;
 
 // fft plans and buffers
 fftw_plan phiIFFT;
@@ -56,7 +56,7 @@ static void dump(double *x, double *rho, double *e, double *phi) {
 
 int main(int argc, char **argv) {
 	DX = XMAX / NGRID;
-	SBOUND = 5*DX;
+	SBOUND = 6*DX;
 
 	// allocate memory
 	double *x = malloc(PART_NUM * sizeof(double));
@@ -201,11 +201,11 @@ int main(int argc, char **argv) {
 
 // particle shape function, centered at 0, gaussian in this case
 double shape(double x) {
-	//if (x < -SBOUND || SBOUND < x) return 0;
-	//else return PART_CHARGE/DX * exp(-pow(x/DX, 2) / 2) / sqrt(2 * M_PI);
+	if (x < -SBOUND || SBOUND < x) return 0;
+	else return PART_CHARGE/DX * exp(-pow(x/DX, 2) / 2) / sqrt(2 * M_PI);
 
-	if (x < -DX || DX < x) return 0;
-	else return (1 - fabs(x/DX)) * PART_CHARGE / DX;
+	//if (x < -DX || DX < x) return 0;
+	//else return (1 - fabs(x/DX)) * PART_CHARGE / DX;
 }
 
 void init(double *x, double *v, int *color) {
@@ -260,23 +260,26 @@ void fields(fftw_complex *rhok, fftw_complex *sk, double *e, double *phi,
 	phikBuf[0][1] = 0;
 	for (int j = 1; j < NGRID; j++) {
 		double k = 2 * M_PI * j / XMAX;
-		
-		double phikRe = rhok[j][0] / (k * k * EPS_0 * FINE * NGRID);
-		double phikIm = rhok[j][1] / (k * k * EPS_0 * FINE * NGRID);
 
-		phikBuf[j][0] = phikRe * sk[j][0] - phikIm * sk[j][1];
-		phikBuf[j][1] = phikIm * sk[j][1] + phikIm * sk[j][0];
+		phikBuf[j][0] = rhok[j][0] / (k * k * EPS_0 * FINE * NGRID);
+		phikBuf[j][1] = rhok[j][1] / (k * k * EPS_0 * FINE * NGRID);
 	}
 
+	// convolute
+	for (int j = 1; j < NGRID; j++) {
+		phikBuf[j][0] = sk[j][0] * phikBuf[j][0] - sk[j][1] * phikBuf[j][1];
+		phikBuf[j][1] = sk[j][0] * phikBuf[j][1] + sk[j][1] * phikBuf[j][0];
+	}
+	
 	// find PE
 	if (potential != NULL) {
 		double pot = 0;
 		for (int j = 1; j < NGRID; j++) {
-			pot += phikBuf[j][0] * rhok[j][0] + phikBuf[j][1] * rhok[j][1];
+			pot += (phikBuf[j][0] * rhok[j][0] + phikBuf[j][1] * rhok[j][1]) / FINE;
 		}
 		*potential = pot / XMAX;
 	}
-	
+
 	// phi(k) -> phi(x)
 	fftw_execute(phiIFFT);
 	memcpy(phi, phixBuf, NGRID * sizeof(double));

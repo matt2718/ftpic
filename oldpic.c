@@ -8,14 +8,14 @@
 #include <qdsp.h>
 
 // max run time
-const double TMAX = 20.0;
+const double TMAX = 15.0;
 
 const double XMAX = 16.0; // system length
 const int NGRID = 256; // grid size
 double DX;
 
 // particle number and properties
-const int PART_NUM = 50000;
+const int PART_NUM = 40000;
 const double PART_MASS = 0.004;
 const double PART_CHARGE = -0.01;
 const double EPS_0 = 1.0;
