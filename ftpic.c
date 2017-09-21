@@ -237,13 +237,25 @@ void deposit(double *x, fftw_complex *rhok, fftw_complex *sk) {
 		fineRhoxBuf[j] = -PART_NUM * PART_CHARGE / XMAX;
 	
 	// deposit
-	for (int i = 0; i < PART_NUM; i++) {
-		int jmin = (x[i] - SBOUND) / FDX;
-		int jmax = (x[i] + SBOUND) / FDX;
-		for (int j = jmin; j <= jmax; j++) {
-			int idx = (j + FGRID) % FGRID;
-			fineRhoxBuf[idx] += shape(j * FDX - x[i]);
+#pragma omp parallel
+	{
+		double *myRho = calloc(FGRID, sizeof(double));
+
+#pragma omp for
+		for (int i = 0; i < PART_NUM; i++) {
+			int jmin = (x[i] - SBOUND) / FDX;
+			int jmax = (x[i] + SBOUND) / FDX;
+			for (int j = jmin; j <= jmax; j++) {
+				int idx = (j + FGRID) % FGRID;
+				myRho[idx] += shape(j * FDX - x[i]);
+			}
+		}				
+#pragma omp critical
+		{
+			for (int j = 0; j < FGRID; j++)
+				fineRhoxBuf[j] += myRho[j];
 		}
+		free(myRho);
 	}
 	
 	// transform rho(xf) -> rho(kf)
