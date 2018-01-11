@@ -5,7 +5,7 @@
 #include <fftw3.h>
 #include <omp.h>
 
-#include "qdsp.h"
+#include <qdsp.h>
 
 const double XMAX = 16.0; // system length
 const int NGRID = 256; // grid size
@@ -214,18 +214,16 @@ void fields(double *rho, double *e, double *phi, double *potential) {
 		phikBuf[j][0] = rhokBuf[j][0] / (k * k * EPS_0);
 		phikBuf[j][1] = rhokBuf[j][1] / (k * k * EPS_0);
 	}
-
+	
 	// potential energy calculation
 	if (potential != NULL) {
 		double pot = 0;
-		for (int j = 1; j < NGRID; j++) {
-			double k = 2 * M_PI * j / XMAX;
-			pot += phikBuf[j][0] * rhokBuf[j][0] +
-				phikBuf[j][1] * rhokBuf[j][1];
+		for (int j = 0; j < NGRID; j++) {
+			pot += phikBuf[j][0] * rhokBuf[j][0] + phikBuf[j][1] * rhokBuf[j][1];
 		}
 		*potential = pot / DX;
 	}
-
+	
 	// phi(k) -> phi(x)
 	fftw_execute(phiIFFT);
 	memcpy(phi, phixBuf, NGRID * sizeof(double));

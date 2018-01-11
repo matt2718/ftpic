@@ -26,6 +26,13 @@ fftw_plan phiIFFT;
 fftw_complex *phikBuf;
 double *phixBuf;
 
+// USFFT buffers
+fftw_complex *zcBuf;
+double *xpBuf;
+double *fpBuf;
+
+extern void uf1t_(int*, double*, int*, double*, double*, int*, int*);
+
 double shape(double x);
 void init(double *x, double *v, int *color);
 
@@ -56,6 +63,11 @@ int main(int argc, char **argv) {
 	// transform buffers
 	phikBuf = fftw_malloc(NGRID * sizeof(fftw_complex));
 	phixBuf = fftw_malloc(NGRID * sizeof(double));
+
+	// USFFT buffers
+	zcBuf = malloc(2 * NGRID * sizeof(fftw_complex));
+	xpBuf = malloc(PART_NUM * sizeof(double));
+	fpBuf = malloc(2*PART_NUM * sizeof(double));
 	
 	// plan transforms
 	fftw_plan rhoIFFT = fftw_plan_dft_c2r_1d(NGRID, rhok, rhox, FFTW_MEASURE);
@@ -69,6 +81,13 @@ int main(int argc, char **argv) {
 		sxsum += sx[j];
 	}
 
+	// USFFT coefficients are 1 + 0i
+	// change this so we can convolute in USFFT
+	for (int m = 0; m < PART_NUM; m++) {
+		fpBuf[2*m] = 1;
+		fpBuf[2*m + 1] = 0;
+	}
+	
 	sxsum *= DX;
 	for (int j = 0; j < NGRID; j++) sx[j] /= sxsum;
 
@@ -148,6 +167,10 @@ int main(int argc, char **argv) {
 	free(x);
 	free(v);
 	free(color);
+
+	free(zcBuf);
+	free(xpBuf);
+	free(fpBuf);
 	
 	fftw_free(rhok);
 	fftw_free(rhox);
@@ -169,9 +192,9 @@ int main(int argc, char **argv) {
 
 // particle shape function, centered at 0, gaussian in this case
 double shape(double x) {
-	//const double sigma = 0.05;
-	//return exp(-x*x / (2 * sigma * sigma)) / sqrt(2 * M_PI * sigma * sigma);
-	return 30 * (fabs(x) < 3*DX);
+	const double sigma = 0.05;
+	return exp(-x*x / (2 * sigma * sigma)) / sqrt(2 * M_PI * sigma * sigma);
+	//return 1.0 * (x == 0);
 }
 
 void init(double *x, double *v, int *color) {
@@ -196,15 +219,23 @@ void init(double *x, double *v, int *color) {
 
 // determines rho(k) from list of particle positions
 void deposit(double *x, fftw_complex *rhok, fftw_complex *sk) {
+
+	int nc = 2 * NGRID;
+	int np = PART_NUM;
+	int isign = -1;
+	int order = 5;
+
+	#pragma omp parallel for
+	for (int m = 0; m < PART_NUM; m++) {
+		xpBuf[m] = x[m] / XMAX;
+	}
+
+	uf1t_(&nc, (double*)zcBuf, &np, xpBuf, fpBuf, &isign, &order);
+	
 	#pragma omp parallel for
 	for (int j = 0; j < NGRID; j++) {
-		double k = (2 * M_PI / XMAX) * j;
-		double real = 0;
-		double imag = 0;
-		for (int i = 0; i < PART_NUM; i++) {
-			real += PART_CHARGE * cos(k * x[i]);
-			imag -= PART_CHARGE * sin(k * x[i]);
-		}
+		double real = PART_CHARGE * zcBuf[NGRID + j][0];
+		double imag = PART_CHARGE * zcBuf[NGRID + j][1];
 		rhok[j][0] = real * sk[j][0] - imag * sk[j][1];
 		rhok[j][1] = real * sk[j][1] + imag * sk[j][0];
 	}

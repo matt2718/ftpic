@@ -11,7 +11,7 @@ debug: oldpic ftpic
 debug: CFLAGS += -g -O0
 
 oldpic: oldpic.c
-	gcc $(CFLAGS) $(LDFLAGS) -o oldpic oldpic.c $(LDLIBS)
+	gcc -o oldpic $(CFLAGS) $(LDFLAGS) oldpic.c $(LDLIBS)
 
 ftpic: ftpic.c
-	gcc $(CFLAGS) $(LDFLAGS) -o ftpic ftpic.c $(LDLIBS)
+	gcc -o ftpic $(CFLAGS) $(LDFLAGS) ftpic.c libusfft.a -lgfortran $(LDLIBS)
