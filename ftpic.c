@@ -265,7 +265,7 @@ void fields(fftw_complex *rhok, fftw_complex *sk, double *e, double *phi,
 	// find PE
 	if (potential != NULL) {
 		double pot = 0;
-		for (int j = 1; j < NGRID; j++) {
+		for (int j = 1; j < NGRID / 2; j++) {
 			pot += phikBuf[j][0] * rhok[j][0] + phikBuf[j][1] * rhok[j][1];
 		}
 		*potential = pot / XMAX;

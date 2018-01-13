@@ -208,7 +208,7 @@ void fields(double *rho, double *e, double *phi, double *potential) {
 	// rho(k) -> phi(k)
 	phikBuf[0][0] = 0;
 	phikBuf[0][1] = 0;
-	for (int j = 1; j < NGRID; j++) {
+	for (int j = 1; j < NGRID / 2; j++) {
 		double k = 2 * M_PI * j / XMAX;
 		double kadj = k * pow(sin(k*DX/2) / (k*DX/2), 2);
 		phikBuf[j][0] = rhokBuf[j][0] / (k * k * EPS_0);
