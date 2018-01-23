@@ -8,12 +8,12 @@
 #include <qdsp.h>
 
 const double XMAX = 16.0; // system length
-const int NGRID = 256; // grid size
+const int NGRID = 128; // grid size
 double DX;
 
 // particle number and properties
-const int PART_NUM = 50000;
-const double PART_MASS = 0.004;
+const int PART_NUM = 20000;
+const double PART_MASS = 0.005;
 const double PART_CHARGE = -0.01;
 const double EPS_0 = 1.0;
 
@@ -100,7 +100,7 @@ int main(int argc, char **argv) {
 	int rhoOn = 1;
 	
 	printf("time,potential,kinetic,total,momentum\n");
-	
+
 	for (int n = 0; open ; n++) {
 		deposit(x, rho);
 		fields(rho, eField, phi, &potential);
@@ -108,7 +108,6 @@ int main(int argc, char **argv) {
 		vHalfPush(x, v, eField, 1);
 
 		open = qdspUpdateIfReady(phasePlot, x, v, color, PART_NUM);
-
 		// logging
 		if (n % 50 == 0) {
 			double kinetic = kineticEnergy(v);
@@ -122,7 +121,7 @@ int main(int argc, char **argv) {
 
 		if (phiOn) phiOn = qdspUpdateIfReady(phiPlot, xar, phi, NULL, NGRID);
 		if (rhoOn) rhoOn = qdspUpdateIfReady(rhoPlot, xar, rho, NULL, NGRID);
-
+		//getchar();
 		vHalfPush(x, v, eField, 1);
 		xPush(x, v);
 	}
@@ -150,11 +149,20 @@ int main(int argc, char **argv) {
 	return 0;
 }
 
+static double bisect(double x1, double x2, double y) {
+	double xmid = (x1 + x2) / 2;
+	double ymid = xmid + 0.25 * XMAX/(2*M_PI) * (1 - cos(2 * M_PI * xmid/XMAX));
+	if (ymid - y > 1e-9) return bisect(x1, xmid, y);
+	else if (ymid - y < -1e-9) return bisect(xmid, x2, y);
+	else return xmid;
+}
+
 void init(double *x, double *v, int *color) {
 	double stddev = sqrt(500 / (5.1e5));
 	for (int i = 0; i < PART_NUM; i++) {
 		x[i] = i * XMAX / PART_NUM;
-
+		//x[i] = x[i]*x[i] / XMAX;
+		//x[i] = bisect(0, XMAX, x[i]);
 		if (i % 2) {
 			v[i] = 8.0;
 			color[i] = 0xff0000;
@@ -221,7 +229,7 @@ void fields(double *rho, double *e, double *phi, double *potential) {
 		for (int j = 0; j < NGRID; j++) {
 			pot += phikBuf[j][0] * rhokBuf[j][0] + phikBuf[j][1] * rhokBuf[j][1];
 		}
-		*potential = pot / DX;
+		*potential = pot * XMAX;
 	}
 	
 	// phi(k) -> phi(x)

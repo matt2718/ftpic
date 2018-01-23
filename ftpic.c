@@ -8,12 +8,16 @@
 #include <qdsp.h>
 
 const double XMAX = 16.0; // system length
-const int NGRID = 256; // grid size
+const int NGRID = 128; // grid size
 double DX;
 
 // particle number and properties
-const int PART_NUM = 1000;
-const double PART_MASS = 1.0;
+
+// failure at 128: 19769
+// failure at 256:  3506
+
+const int PART_NUM = 5000;
+const double PART_MASS = 0.005;
 const double PART_CHARGE = -0.01;
 const double EPS_0 = 1.0;
 
@@ -74,10 +78,12 @@ int main(int argc, char **argv) {
 	phiIFFT = fftw_plan_dft_c2r_1d(NGRID, phikBuf, phixBuf, FFTW_MEASURE);
 
 	// determine s(k)
+	fftw_plan sFFT = fftw_plan_dft_r2c_1d(NGRID, sx, sk, FFTW_ESTIMATE);
+		
 	double sxsum = 0;
 	for (int j = 0; j < NGRID; j++) {
 		double xcur = j * XMAX / NGRID;
-		sx[j] += shape(xcur) + shape(XMAX - xcur);
+		sx[j] = shape(xcur) + shape(XMAX - xcur);
 		sxsum += sx[j];
 	}
 
@@ -91,7 +97,6 @@ int main(int argc, char **argv) {
 	sxsum *= DX;
 	for (int j = 0; j < NGRID; j++) sx[j] /= sxsum;
 
-	fftw_plan sFFT = fftw_plan_dft_r2c_1d(NGRID, sx, sk, FFTW_ESTIMATE);
 	fftw_execute(sFFT);
 	fftw_destroy_plan(sFFT);
 	
@@ -106,17 +111,17 @@ int main(int argc, char **argv) {
 	qdspSetBGColor(phasePlot, 0xffffff);
 
 	QDSPplot *phiPlot = qdspInit("Phi(x)");
-	qdspSetBounds(phiPlot, 0, XMAX, -10000, 10000);
+	qdspSetBounds(phiPlot, 0, XMAX, -100, 100);
 	qdspSetGridX(phiPlot, 0, 2, 0x888888);
-	qdspSetGridY(phiPlot, 0, 2000, 0x888888);
+	qdspSetGridY(phiPlot, 0, 20, 0x888888);
 	qdspSetConnected(phiPlot, 1);
 	qdspSetPointColor(phiPlot, 0x000000);
 	qdspSetBGColor(phiPlot, 0xffffff);
 
 	QDSPplot *rhoPlot = qdspInit("Rho(x)");
-	qdspSetBounds(rhoPlot, 0, XMAX, -1000, 1000);
+	qdspSetBounds(rhoPlot, 0, XMAX, -10, 10);
 	qdspSetGridX(rhoPlot, 0, 2, 0x888888);
-	qdspSetGridY(rhoPlot, 0, 200, 0x888888);
+	qdspSetGridY(rhoPlot, 0, 2, 0x888888);
 	qdspSetConnected(rhoPlot, 1);
 	qdspSetPointColor(rhoPlot, 0x000000);
 	qdspSetBGColor(rhoPlot, 0xffffff);
@@ -156,9 +161,12 @@ int main(int argc, char **argv) {
 		if (phiOn) phiOn = qdspUpdateIfReady(phiPlot, xar, phix, NULL, NGRID);
 		if (rhoOn) {
 			fftw_execute(rhoIFFT);
+			//for (int j = 0; j < NGRID; j++)
+			//	   rhox[j] = sqrt(rhok[j][0]*rhok[j][0] + rhok[j][1]*rhok[j][1]);
 			rhoOn = qdspUpdateIfReady(rhoPlot, xar, rhox, NULL, NGRID);
 		}
-
+		
+		//getchar();
 		vHalfPush(x, v, ex, 1);
 		xPush(x, v);
 	}
@@ -192,16 +200,24 @@ int main(int argc, char **argv) {
 
 // particle shape function, centered at 0, gaussian in this case
 double shape(double x) {
-	const double sigma = 0.05;
-	return exp(-x*x / (2 * sigma * sigma)) / sqrt(2 * M_PI * sigma * sigma);
-	//return 1.0 * (x == 0);
+	//const double sigma = 0.05;
+	//return exp(-x*x / (2 * sigma * sigma)) / sqrt(2 * M_PI * sigma * sigma);
+	return 1.0 * (x == 0);
+}
+static double bisect(double x1, double x2, double y) {
+	double xmid = (x1 + x2) / 2;
+	double ymid = xmid + 0.25 * XMAX/(2*M_PI) * (1 - cos(2 * M_PI * xmid/XMAX));
+	if (ymid - y > 1e-9) return bisect(x1, xmid, y);
+	else if (ymid - y < -1e-9) return bisect(xmid, x2, y);
+	else return xmid;
 }
 
 void init(double *x, double *v, int *color) {
-	double stdev = sqrt(5000 / (5.1e5));
+	double stddev = sqrt(5000 / (5.1e5));
 	for (int i = 0; i < PART_NUM; i++) {
 		x[i] = i * XMAX / PART_NUM;
-
+		//x[i] = x[i] * x[i] / XMAX;
+		//x[i] = bisect(0, XMAX, x[i]);
 		if (i % 2) {
 			v[i] = 8.0;
 			color[i] = 0xff0000;
@@ -213,14 +229,14 @@ void init(double *x, double *v, int *color) {
 		// box-mueller
 		double r1 = (rand() + 1) / ((double)RAND_MAX + 1); // log(0) breaks stuff
 		double r2 = (rand() + 1) / ((double)RAND_MAX + 1);
-		v[i] += stdev * sqrt(-2 * log(r1)) * cos(2 * M_PI * r2);
+		v[i] += stddev * sqrt(-2 * log(r1)) * cos(2 * M_PI * r2);
 	}
 }
 
 // determines rho(k) from list of particle positions
 void deposit(double *x, fftw_complex *rhok, fftw_complex *sk) {
 
-	int nc = 2 * NGRID;
+	int nc = 2*NGRID;
 	int np = PART_NUM;
 	int isign = -1;
 	int order = 5;
@@ -231,11 +247,12 @@ void deposit(double *x, fftw_complex *rhok, fftw_complex *sk) {
 	}
 
 	uf1t_(&nc, (double*)zcBuf, &np, xpBuf, fpBuf, &isign, &order);
-	
-	#pragma omp parallel for
+
+	//#pragma omp parallel for
 	for (int j = 0; j < NGRID; j++) {
-		double real = PART_CHARGE * zcBuf[NGRID + j][0];
-		double imag = PART_CHARGE * zcBuf[NGRID + j][1];
+		double real = PART_CHARGE * zcBuf[NGRID + j][0] / NGRID;
+		double imag = PART_CHARGE * zcBuf[NGRID + j][1] / NGRID;
+		//printf("%d\t%f,%f\t%f,%f\n", j, real, imag);
 		rhok[j][0] = real * sk[j][0] - imag * sk[j][1];
 		rhok[j][1] = real * sk[j][1] + imag * sk[j][0];
 	}
@@ -268,7 +285,7 @@ void fields(fftw_complex *rhok, fftw_complex *sk, double *e, double *phi,
 		for (int j = 1; j < NGRID / 2; j++) {
 			pot += phikBuf[j][0] * rhok[j][0] + phikBuf[j][1] * rhok[j][1];
 		}
-		*potential = pot / XMAX;
+		*potential = pot * XMAX;
 	}
 	
 	// phi(k) -> phi(x)
@@ -330,7 +347,7 @@ double kineticEnergy(double *v) {
 double momentum(double *v) {
 	double p = 0;
 
-#pragma omp parallel for reduction(+:p)
+	#pragma omp parallel for reduction(+:p)
 	for (int i = 0; i < PART_NUM; i++) {
 		p += PART_MASS * v[i];
 	}
