@@ -8,11 +8,11 @@
 #include <qdsp.h>
 
 const double XMAX = 16.0; // system length
-const int NGRID = 128; // grid size
+const int NGRID = 256; // grid size
 double DX;
 
 // particle number and properties
-const int PART_NUM = 20000;
+const int PART_NUM = 50000;
 const double PART_MASS = 0.005;
 const double PART_CHARGE = -0.01;
 const double EPS_0 = 1.0;
@@ -71,9 +71,9 @@ int main(int argc, char **argv) {
 	qdspSetFramerate(phasePlot, 100);
 	
 	QDSPplot *phiPlot = qdspInit("Phi(x)");
-	qdspSetBounds(phiPlot, 0, XMAX, -50, 50);
+	qdspSetBounds(phiPlot, 0, XMAX, -100, 100);
 	qdspSetGridX(phiPlot, 0, 2, 0x888888);
-	qdspSetGridY(phiPlot, 0, 10, 0x888888);
+	qdspSetGridY(phiPlot, 0, 20, 0x888888);
 	qdspSetConnected(phiPlot, 1);
 	qdspSetPointColor(phiPlot, 0x000000);
 	qdspSetBGColor(phiPlot, 0xffffff);
@@ -81,7 +81,7 @@ int main(int argc, char **argv) {
 	QDSPplot *rhoPlot = qdspInit("Rho(x)");
 	qdspSetBounds(rhoPlot, 0, XMAX, -100, 100);
 	qdspSetGridX(rhoPlot, 0, 2, 0x888888);
-	qdspSetGridY(rhoPlot, 0, 20, 0x888888);
+	qdspSetGridY(rhoPlot, 0, 10, 0x888888);
 	qdspSetConnected(rhoPlot, 1);
 	qdspSetPointColor(rhoPlot, 0x000000);
 	qdspSetBGColor(rhoPlot, 0xffffff);
@@ -93,6 +93,12 @@ int main(int argc, char **argv) {
 	
 	deposit(x, rho);
 	fields(rho, eField, phi, &potential);
+
+	FILE *outfile = fopen("phidump_o", "w");
+	for (int j = 0; j < NGRID; j++)
+		fprintf(outfile, "%f\n", phi[j]);
+	fclose(outfile);
+	
 	vHalfPush(x, v, eField, 0); // push backwards
 
 	int open = 1;
@@ -109,7 +115,7 @@ int main(int argc, char **argv) {
 
 		open = qdspUpdateIfReady(phasePlot, x, v, color, PART_NUM);
 		// logging
-		if (n % 50 == 0) {
+		if (n % 10 == 0) {
 			double kinetic = kineticEnergy(v);
 			printf("%f,%f,%f,%f,%f\n",
 			       n * DT,
@@ -175,6 +181,7 @@ void init(double *x, double *v, int *color) {
 		double r1 = (rand() + 1) / ((double)RAND_MAX + 1); // log(0) breaks stuff
 		double r2 = (rand() + 1) / ((double)RAND_MAX + 1);
 		v[i] += stddev * sqrt(-2 * log(r1)) * cos(2 * M_PI * r2);
+		//v[i] = 0;
 	}
 }
 
@@ -218,7 +225,7 @@ void fields(double *rho, double *e, double *phi, double *potential) {
 	phikBuf[0][1] = 0;
 	for (int j = 1; j < NGRID / 2; j++) {
 		double k = 2 * M_PI * j / XMAX;
-		double kadj = k * pow(sin(k*DX/2) / (k*DX/2), 2);
+		double ksqi = k * pow(sin(k*DX/2) / (k*DX/2), 2);
 		phikBuf[j][0] = rhokBuf[j][0] / (k * k * EPS_0);
 		phikBuf[j][1] = rhokBuf[j][1] / (k * k * EPS_0);
 	}

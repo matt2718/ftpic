@@ -8,7 +8,7 @@
 #include <qdsp.h>
 
 const double XMAX = 16.0; // system length
-const int NGRID = 128; // grid size
+const int NGRID = 256; // grid size
 double DX;
 
 // particle number and properties
@@ -16,7 +16,7 @@ double DX;
 // failure at 128: 19769
 // failure at 256:  3506
 
-const int PART_NUM = 5000;
+const int PART_NUM = 50000;
 const double PART_MASS = 0.005;
 const double PART_CHARGE = -0.01;
 const double EPS_0 = 1.0;
@@ -79,7 +79,7 @@ int main(int argc, char **argv) {
 
 	// determine s(k)
 	fftw_plan sFFT = fftw_plan_dft_r2c_1d(NGRID, sx, sk, FFTW_ESTIMATE);
-		
+
 	double sxsum = 0;
 	for (int j = 0; j < NGRID; j++) {
 		double xcur = j * XMAX / NGRID;
@@ -119,9 +119,9 @@ int main(int argc, char **argv) {
 	qdspSetBGColor(phiPlot, 0xffffff);
 
 	QDSPplot *rhoPlot = qdspInit("Rho(x)");
-	qdspSetBounds(rhoPlot, 0, XMAX, -10, 10);
+	qdspSetBounds(rhoPlot, 0, XMAX, -50, 50);
 	qdspSetGridX(rhoPlot, 0, 2, 0x888888);
-	qdspSetGridY(rhoPlot, 0, 2, 0x888888);
+	qdspSetGridY(rhoPlot, 0, 10, 0x888888);
 	qdspSetConnected(rhoPlot, 1);
 	qdspSetPointColor(rhoPlot, 0x000000);
 	qdspSetBGColor(rhoPlot, 0xffffff);
@@ -133,6 +133,12 @@ int main(int argc, char **argv) {
 	
 	deposit(x, rhok, sk);
 	fields(rhok, sk, ex, phix, &potential);
+
+	FILE *outfile = fopen("phidump_f", "w");
+	for (int j = 0; j < NGRID; j++)
+		fprintf(outfile, "%f\n", phix[j]);
+	fclose(outfile);
+	
 	vHalfPush(x, v, ex, 0);
 
 	int open = 1;
@@ -148,7 +154,7 @@ int main(int argc, char **argv) {
 		vHalfPush(x, v, ex, 1);
 		open = qdspUpdateIfReady(phasePlot, x, v, color, PART_NUM);
 		// logging
-		if (n % 50 == 0) {
+		if (n % 10 == 0) {
 			double kinetic = kineticEnergy(v);
 			printf("%f,%f,%f,%f,%f\n",
 			       n * DT,
@@ -162,7 +168,7 @@ int main(int argc, char **argv) {
 		if (rhoOn) {
 			fftw_execute(rhoIFFT);
 			//for (int j = 0; j < NGRID; j++)
-			//	   rhox[j] = sqrt(rhok[j][0]*rhok[j][0] + rhok[j][1]*rhok[j][1]);
+			//	rhox[j] = rhok[j][0];
 			rhoOn = qdspUpdateIfReady(rhoPlot, xar, rhox, NULL, NGRID);
 		}
 		
@@ -200,20 +206,21 @@ int main(int argc, char **argv) {
 
 // particle shape function, centered at 0, gaussian in this case
 double shape(double x) {
-	//const double sigma = 0.05;
-	//return exp(-x*x / (2 * sigma * sigma)) / sqrt(2 * M_PI * sigma * sigma);
-	return 1.0 * (x == 0);
+	const double sigma = 0.05;
+	return exp(-x*x / (2 * sigma * sigma)) / sqrt(2 * M_PI * sigma * sigma);
+	//return 1.0 * (x == 0);
+	//return fmax(1 - fabs(x/DX), 0);
 }
 static double bisect(double x1, double x2, double y) {
 	double xmid = (x1 + x2) / 2;
-	double ymid = xmid + 0.25 * XMAX/(2*M_PI) * (1 - cos(2 * M_PI * xmid/XMAX));
+	double ymid = xmid + 0.25 * XMAX/(4*2*M_PI) * (1 - cos(4*2 * M_PI * xmid/XMAX));
 	if (ymid - y > 1e-9) return bisect(x1, xmid, y);
 	else if (ymid - y < -1e-9) return bisect(xmid, x2, y);
 	else return xmid;
 }
 
 void init(double *x, double *v, int *color) {
-	double stddev = sqrt(5000 / (5.1e5));
+	double stddev = sqrt(500 / (5.1e5));
 	for (int i = 0; i < PART_NUM; i++) {
 		x[i] = i * XMAX / PART_NUM;
 		//x[i] = x[i] * x[i] / XMAX;
@@ -230,6 +237,7 @@ void init(double *x, double *v, int *color) {
 		double r1 = (rand() + 1) / ((double)RAND_MAX + 1); // log(0) breaks stuff
 		double r2 = (rand() + 1) / ((double)RAND_MAX + 1);
 		v[i] += stddev * sqrt(-2 * log(r1)) * cos(2 * M_PI * r2);
+		//v[i] = 0;
 	}
 }
 
@@ -274,8 +282,8 @@ void fields(fftw_complex *rhok, fftw_complex *sk, double *e, double *phi,
 		double phikRe = rhok[j][0] / (k * k * EPS_0);
 		double phikIm = rhok[j][1] / (k * k * EPS_0);
 
-		phikBuf[j][0] = sk[j][0] * phikRe - sk[j][1] * phikIm;
-		phikBuf[j][1] = sk[j][0] * phikIm + sk[j][1] * phikRe;
+		phikBuf[j][0] = (sk[j][0] * phikRe - sk[j][1] * phikIm) * DX;
+		phikBuf[j][1] = (sk[j][0] * phikIm + sk[j][1] * phikRe) * DX;
 	}
 
 
@@ -287,11 +295,11 @@ void fields(fftw_complex *rhok, fftw_complex *sk, double *e, double *phi,
 		}
 		*potential = pot * XMAX;
 	}
-	
+
 	// phi(k) -> phi(x)
 	fftw_execute(phiIFFT);
 	memcpy(phi, phixBuf, NGRID * sizeof(double));
-
+	
 	// determine E(x) via finite difference
 	e[0] = (phi[NGRID-1] - phi[1]) / (2 * DX);
 	e[NGRID-1] = (phi[NGRID-2] - phi[0]) / (2 * DX);
