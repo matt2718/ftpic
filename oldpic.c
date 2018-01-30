@@ -94,11 +94,6 @@ int main(int argc, char **argv) {
 	deposit(x, rho);
 	fields(rho, eField, phi, &potential);
 
-	FILE *outfile = fopen("phidump_o", "w");
-	for (int j = 0; j < NGRID; j++)
-		fprintf(outfile, "%f\n", phi[j]);
-	fclose(outfile);
-	
 	vHalfPush(x, v, eField, 0); // push backwards
 
 	int open = 1;

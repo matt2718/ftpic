@@ -35,6 +35,9 @@ fftw_complex *zcBuf;
 double *xpBuf;
 double *fpBuf;
 
+double *ekBuf;
+double *emBuf;
+
 extern void uf1t_(int*, double*, int*, double*, double*, int*, int*);
 
 double shape(double x);
@@ -133,11 +136,6 @@ int main(int argc, char **argv) {
 	
 	deposit(x, rhok, sk);
 	fields(rhok, sk, ex, phix, &potential);
-
-	FILE *outfile = fopen("phidump_f", "w");
-	for (int j = 0; j < NGRID; j++)
-		fprintf(outfile, "%f\n", phix[j]);
-	fclose(outfile);
 	
 	vHalfPush(x, v, ex, 0);
 
@@ -271,7 +269,7 @@ void deposit(double *x, fftw_complex *rhok, fftw_complex *sk) {
 }
 
 
-void fields(fftw_complex *rhok, fftw_complex *sk, double *e, double *phi,
+void fields(fftw_complex *rhok, fftw_complex *sk, double *phi,
             double *potential) {
 	
 	// rho(k) -> phi(k)
