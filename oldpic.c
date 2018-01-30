@@ -19,7 +19,7 @@ const double EPS_0 = 1.0;
 
 // time info
 const double DT = 0.0005;
-const double NMAX = 1000;
+const double TMAX = 20;
 
 // plans and buffers for fft
 fftw_plan rhoFFT;
@@ -107,7 +107,7 @@ int main(int argc, char **argv) {
 	
 	printf("time,potential,kinetic,total,momentum\n");
 
-	for (int n = 0; open ; n++) {
+	for (int n = 0; open && n * DT < TMAX; n++) {
 		deposit(x, rho);
 		fields(rho, eField, phi, &potential);
 

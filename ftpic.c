@@ -23,7 +23,7 @@ const double EPS_0 = 1.0;
 
 // time info
 const double DT = 0.0005;
-const double NMAX = 1000;
+const double TMAX = 20;
 
 // fft plans and buffers
 fftw_plan phiIFFT;
@@ -147,7 +147,7 @@ int main(int argc, char **argv) {
 
 	printf("time,potential,kinetic,total,momentum\n");
 	
-	for (int n = 0; open; n++) {
+	for (int n = 0; open && n * DT < TMAX; n++) {
 		deposit(x, rhok, sk);
 		fields(rhok, sk, ex, phix, &potential);
 
@@ -206,14 +206,15 @@ int main(int argc, char **argv) {
 
 // particle shape function, centered at 0, gaussian in this case
 double shape(double x) {
-	const double sigma = 0.05;
-	return exp(-x*x / (2 * sigma * sigma)) / sqrt(2 * M_PI * sigma * sigma);
-	//return 1.0 * (x == 0);
+	//const double sigma = 0.05;
+	//return exp(-x*x / (2 * sigma * sigma)) / sqrt(2 * M_PI * sigma * sigma);
+	return 1.0 * (x == 0);
 	//return fmax(1 - fabs(x/DX), 0);
 }
+
 static double bisect(double x1, double x2, double y) {
 	double xmid = (x1 + x2) / 2;
-	double ymid = xmid + 0.25 * XMAX/(4*2*M_PI) * (1 - cos(4*2 * M_PI * xmid/XMAX));
+	double ymid = xmid + 0.25 * XMAX/(2*M_PI) * (1 - cos(2 * M_PI * xmid/XMAX));
 	if (ymid - y > 1e-9) return bisect(x1, xmid, y);
 	else if (ymid - y < -1e-9) return bisect(xmid, x2, y);
 	else return xmid;
