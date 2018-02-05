@@ -65,14 +65,14 @@ int main(int argc, char **argv) {
 	double *ex = fftw_malloc(NGRID * sizeof(double));
 
 	double *sx = fftw_malloc(NGRID * sizeof(double));
-	fftw_complex *sk = fftw_malloc(NGRID * sizeof(fftw_complex));
+	fftw_complex *sk = fftw_malloc(NGRID/2 * sizeof(fftw_complex));
 
 	// transform buffers
-	phikBuf = fftw_malloc(NGRID * sizeof(fftw_complex));
+	phikBuf = fftw_malloc(NGRID/2 * sizeof(fftw_complex));
 	phixBuf = fftw_malloc(NGRID * sizeof(double));
 
 	// USFFT buffers
-	zcBuf = malloc(2 * NGRID * sizeof(fftw_complex));
+	zcBuf = malloc(NGRID * sizeof(fftw_complex));
 	xpBuf = malloc(PART_NUM * sizeof(double));
 	fpBuf = malloc(2*PART_NUM * sizeof(double));
 	
@@ -84,7 +84,7 @@ int main(int argc, char **argv) {
 	fftw_plan sFFT = fftw_plan_dft_r2c_1d(NGRID, sx, sk, FFTW_ESTIMATE);
 
 	double sxsum = 0;
-	for (int j = 0; j < NGRID; j++) {
+	for (int j = 0; j < NGRID/2; j++) {
 		double xcur = j * XMAX / NGRID;
 		sx[j] = shape(xcur) + shape(XMAX - xcur);
 		sxsum += sx[j];
@@ -243,7 +243,7 @@ void init(double *x, double *v, int *color) {
 // determines rho(k) from list of particle positions
 void deposit(double *x, fftw_complex *rhok, fftw_complex *sk) {
 
-	int nc = 2*NGRID;
+	int nc = NGRID;
 	int np = PART_NUM;
 	int isign = -1;
 	int order = 5;
@@ -256,9 +256,9 @@ void deposit(double *x, fftw_complex *rhok, fftw_complex *sk) {
 	uf1t_(&nc, (double*)zcBuf, &np, xpBuf, fpBuf, &isign, &order);
 
 	//#pragma omp parallel for
-	for (int j = 0; j < NGRID; j++) {
-		double real = PART_CHARGE * zcBuf[NGRID + j][0] / NGRID;
-		double imag = PART_CHARGE * zcBuf[NGRID + j][1] / NGRID;
+	for (int j = 0; j < NGRID/2; j++) {
+		double real = PART_CHARGE * zcBuf[NGRID/2 + j][0] / NGRID;
+		double imag = PART_CHARGE * zcBuf[NGRID/2 + j][1] / NGRID;
 		//printf("%d\t%f,%f\t%f,%f\n", j, real, imag);
 		rhok[j][0] = real * sk[j][0] - imag * sk[j][1];
 		rhok[j][1] = real * sk[j][1] + imag * sk[j][0];
@@ -269,13 +269,13 @@ void deposit(double *x, fftw_complex *rhok, fftw_complex *sk) {
 }
 
 
-void fields(fftw_complex *rhok, fftw_complex *sk, double *phi,
+void fields(fftw_complex *rhok, fftw_complex *sk, double *e, double *phi,
             double *potential) {
 	
 	// rho(k) -> phi(k)
 	phikBuf[0][0] = 0;
 	phikBuf[0][1] = 0;
-	for (int j = 1; j < NGRID; j++) {
+	for (int j = 1; j < NGRID/2; j++) {
 		double k = 2 * M_PI * j / XMAX;
 		
 		double phikRe = rhok[j][0] / (k * k * EPS_0);

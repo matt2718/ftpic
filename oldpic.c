@@ -52,8 +52,8 @@ int main(int argc, char **argv) {
 	// transform buffers
 	rhoxBuf = fftw_malloc(NGRID * sizeof(double));
 	phixBuf = fftw_malloc(NGRID * sizeof(double));
-	rhokBuf = fftw_malloc(NGRID * sizeof(fftw_complex));
-	phikBuf = fftw_malloc(NGRID * sizeof(fftw_complex));
+	rhokBuf = fftw_malloc(NGRID/2 * sizeof(fftw_complex));
+	phikBuf = fftw_malloc(NGRID/2 * sizeof(fftw_complex));
 	// plan transforms
 	rhoFFT = fftw_plan_dft_r2c_1d(NGRID, rhoxBuf, rhokBuf, FFTW_MEASURE);
 	phiIFFT = fftw_plan_dft_c2r_1d(NGRID, phikBuf, phixBuf, FFTW_MEASURE);
@@ -218,7 +218,7 @@ void fields(double *rho, double *e, double *phi, double *potential) {
 	// rho(k) -> phi(k)
 	phikBuf[0][0] = 0;
 	phikBuf[0][1] = 0;
-	for (int j = 1; j < NGRID / 2; j++) {
+	for (int j = 1; j < NGRID/2; j++) {
 		double k = 2 * M_PI * j / XMAX;
 		double ksqi = k * pow(sin(k*DX/2) / (k*DX/2), 2);
 		phikBuf[j][0] = rhokBuf[j][0] / (k * k * EPS_0);
@@ -228,7 +228,7 @@ void fields(double *rho, double *e, double *phi, double *potential) {
 	// potential energy calculation
 	if (potential != NULL) {
 		double pot = 0;
-		for (int j = 0; j < NGRID; j++) {
+		for (int j = 0; j < NGRID/2; j++) {
 			pot += phikBuf[j][0] * rhokBuf[j][0] + phikBuf[j][1] * rhokBuf[j][1];
 		}
 		*potential = pot * XMAX;
