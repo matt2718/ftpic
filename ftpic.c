@@ -16,7 +16,7 @@ double DX;
 // failure at 128: 19769
 // failure at 256:  3506
 
-const int PART_NUM = 50000;
+const int PART_NUM = 10000;
 const double PART_MASS = 0.005;
 const double PART_CHARGE = -0.01;
 const double EPS_0 = 1.0;
@@ -35,10 +35,11 @@ fftw_complex *zcBuf;
 double *xpBuf;
 double *fpBuf;
 
-double *ekBuf;
-double *emBuf;
+fftw_complex *ekBuf;
+fftw_complex *epBuf;
 
 extern void uf1t_(int*, double*, int*, double*, double*, int*, int*);
+extern void uf1a_(int*, double*, int*, double*, double*, int*, int*);
 
 double shape(double x);
 void init(double *x, double *v, int *color);
@@ -75,6 +76,10 @@ int main(int argc, char **argv) {
 	zcBuf = malloc(NGRID * sizeof(fftw_complex));
 	xpBuf = malloc(PART_NUM * sizeof(double));
 	fpBuf = malloc(2*PART_NUM * sizeof(double));
+
+	// reverse USFFT
+	ekBuf = malloc(2 * NGRID * sizeof(fftw_complex));
+	epBuf = malloc(PART_NUM * sizeof(fftw_complex));
 	
 	// plan transforms
 	fftw_plan rhoIFFT = fftw_plan_dft_c2r_1d(NGRID, rhok, rhox, FFTW_MEASURE);
@@ -283,6 +288,9 @@ void fields(fftw_complex *rhok, fftw_complex *sk, double *e, double *phi,
 
 		phikBuf[j][0] = (sk[j][0] * phikRe - sk[j][1] * phikIm) * DX;
 		phikBuf[j][1] = (sk[j][0] * phikIm + sk[j][1] * phikRe) * DX;
+
+		ekBuf[NGRID/2 + j][0] = k * phikBuf[j][1];
+		ekBuf[NGRID/2 + j][1] = -k * phikBuf[j][0];
 	}
 
 
@@ -321,6 +329,39 @@ void xPush(double *x, double *v) {
 }
 
 void vHalfPush(double *x, double *v, double *e, int forward) {
+	// calculate forces from E(k)
+	int nc = NGRID;
+	int np = PART_NUM;
+	int isign = 1;
+	int order = 5;
+
+	// first element of ekBuf must be 0
+	ekBuf[0][0] = 0;
+	ekBuf[0][1] = 0;
+	for (int j = 0; j < NGRID/2; j++) {
+		// array must be Hermitian
+		ekBuf[NGRID/2 - j][0] = ekBuf[j + NGRID/2][0];
+		ekBuf[NGRID/2 - j][1] = -ekBuf[j + NGRID/2][1];
+	}
+	
+#pragma omp parallel for
+	for (int m = 0; m < PART_NUM; m++) {
+		xpBuf[m] = x[m] / XMAX;
+	}
+	
+	uf1a_(&nc, (double*)ekBuf, &np, xpBuf, (double*)epBuf, &isign, &order);
+	for (int m = 0; m < PART_NUM; m++) {
+		// interpolated e(x_m)
+		double ePart = epBuf[m][0];
+
+		// push
+		if (forward)
+			v[m] += DT/2 * (PART_CHARGE / PART_MASS) * ePart;
+		else
+			v[m] -= DT/2 * (PART_CHARGE / PART_MASS) * ePart;
+	}
+
+	/*
 #pragma omp parallel for
 	for (int i = 0; i < PART_NUM; i++) {
 		// calculate index and placement between grid points
@@ -338,6 +379,7 @@ void vHalfPush(double *x, double *v, double *e, int forward) {
 		else
 			v[i] -= DT/2 * (PART_CHARGE / PART_MASS) * ePart;
 	}
+	*/
 }
 
 double kineticEnergy(double *v) {
