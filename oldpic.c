@@ -8,13 +8,13 @@
 #include <qdsp.h>
 
 const double XMAX = 16.0; // system length
-const int NGRID = 256; // grid size
+const int NGRID = 16; // grid size
 double DX;
 
 // particle number and properties
-const int PART_NUM = 50000;
+const int PART_NUM = 10000;
 const double PART_MASS = 0.005;
-const double PART_CHARGE = -0.01;
+const double PART_CHARGE = -0.0141;
 const double EPS_0 = 1.0;
 
 // time info

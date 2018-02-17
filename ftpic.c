@@ -8,15 +8,11 @@
 #include <qdsp.h>
 
 const double XMAX = 16.0; // system length
-const int NGRID = 256; // grid size
+const int NGRID = 128; // grid size
 double DX;
 
 // particle number and properties
-
-// failure at 128: 19769
-// failure at 256:  3506
-
-const int PART_NUM = 10000;
+const int PART_NUM = 20000;
 const double PART_MASS = 0.005;
 const double PART_CHARGE = -0.01;
 const double EPS_0 = 1.0;
@@ -89,7 +85,7 @@ int main(int argc, char **argv) {
 	fftw_plan sFFT = fftw_plan_dft_r2c_1d(NGRID, sx, sk, FFTW_ESTIMATE);
 
 	double sxsum = 0;
-	for (int j = 0; j < NGRID/2; j++) {
+	for (int j = 0; j < NGRID; j++) {
 		double xcur = j * XMAX / NGRID;
 		sx[j] = shape(xcur) + shape(XMAX - xcur);
 		sxsum += sx[j];
@@ -149,22 +145,27 @@ int main(int argc, char **argv) {
 	int rhoOn = 1;
 
 	printf("time,potential,kinetic,total,momentum\n");
+
+	double minp = 1/0.0;
+	double maxp = 0.0;
 	
 	for (int n = 0; open && n * DT < TMAX; n++) {
 		deposit(x, rhok, sk);
 		fields(rhok, sk, ex, phix, &potential);
-
 		vHalfPush(x, v, ex, 1);
 		open = qdspUpdateIfReady(phasePlot, x, v, color, PART_NUM);
 		// logging
 		if (n % 10 == 0) {
 			double kinetic = kineticEnergy(v);
+			double curp = momentum(v);
 			printf("%f,%f,%f,%f,%f\n",
 			       n * DT,
 			       potential,
 			       kinetic,
 			       potential + kinetic,
-			       momentum(v));
+			       curp);
+			if (curp < minp) minp = curp;
+			if (curp > maxp) maxp = curp;
 		}
 
 		if (phiOn) phiOn = qdspUpdateIfReady(phiPlot, xar, phix, NULL, NGRID);
@@ -256,8 +257,9 @@ void deposit(double *x, fftw_complex *rhok, fftw_complex *sk) {
 	#pragma omp parallel for
 	for (int m = 0; m < PART_NUM; m++) {
 		xpBuf[m] = x[m] / XMAX;
+		//if (xpBuf[m] >= 0.5) xpBuf[m] -= 1.0;
 	}
-
+	
 	uf1t_(&nc, (double*)zcBuf, &np, xpBuf, fpBuf, &isign, &order);
 
 	//#pragma omp parallel for
@@ -292,7 +294,6 @@ void fields(fftw_complex *rhok, fftw_complex *sk, double *e, double *phi,
 		ekBuf[NGRID/2 + j][0] = k * phikBuf[j][1];
 		ekBuf[NGRID/2 + j][1] = -k * phikBuf[j][0];
 	}
-
 
 	// find PE
 	if (potential != NULL) {
@@ -347,6 +348,7 @@ void vHalfPush(double *x, double *v, double *e, int forward) {
 #pragma omp parallel for
 	for (int m = 0; m < PART_NUM; m++) {
 		xpBuf[m] = x[m] / XMAX;
+		//if (xpBuf[m] >= 0.5) xpBuf[m] -= 1.0;
 	}
 	
 	uf1a_(&nc, (double*)ekBuf, &np, xpBuf, (double*)epBuf, &isign, &order);
