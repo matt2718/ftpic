@@ -8,14 +8,16 @@
 #include <qdsp.h>
 
 const double XMAX = 16.0; // system length
-const int NGRID = 16; // grid size
+const int NGRID = 128; // grid size
 double DX;
 
 // particle number and properties
-const int PART_NUM = 10000;
+const int PART_NUM = 20000;
 const double PART_MASS = 0.005;
-const double PART_CHARGE = -0.0141;
+const double PART_CHARGE = -0.01;
 const double EPS_0 = 1.0;
+
+const double BEAM_SPEED = 8.0;
 
 // time info
 const double DT = 0.0005;
@@ -26,6 +28,9 @@ fftw_plan rhoFFT;
 fftw_plan phiIFFT;
 double *rhoxBuf, *phixBuf;
 fftw_complex *rhokBuf, *phikBuf;
+
+FILE *modeLog = NULL;
+FILE *paramLog = NULL;
 
 void init(double *x, double *v, int *color);
 
@@ -40,6 +45,41 @@ void vDist();
 
 int main(int argc, char **argv) {
 	DX = XMAX / NGRID;
+
+	// parse arguments
+	for (int i = 1; i < argc - 1; i++) {
+		if (!strcmp(argv[i], "-p")) paramLog = fopen(argv[++i], "w");
+		if (!strcmp(argv[i], "-m")) modeLog = fopen(argv[++i], "w");
+	}
+
+	// dump parameters
+	if (paramLog) {
+		// basic
+		fprintf(paramLog, " particles: %i\n", PART_NUM);
+		fprintf(paramLog, "  timestep: %f\n", DT);
+		fprintf(paramLog, "    length: %f\n", XMAX);
+		fprintf(paramLog, "    v_beam: %f\n", BEAM_SPEED);
+		fprintf(paramLog, "      mass: %f\n", PART_MASS);
+		fprintf(paramLog, "    charge: %f\n", PART_CHARGE);
+		fprintf(paramLog, "     eps_0: %f\n", EPS_0);
+		fprintf(paramLog, "\n");
+
+		// Debye length
+		double kt = PART_MASS * BEAM_SPEED * BEAM_SPEED;
+		double dens = PART_NUM / XMAX;
+		double ne2 = (dens * PART_CHARGE * PART_CHARGE);
+		fprintf(paramLog, "    lambda: %f\n", sqrt(EPS_0 * kt / ne2));
+
+		// plasma frequency
+		fprintf(paramLog, " frequency: %f\n", sqrt(ne2 / (PART_MASS * EPS_0)));
+		fclose(paramLog);
+	}
+
+	// header for modes
+	if (modeLog) {
+		fprintf(modeLog, "time,m1,m2,m3,m4\n");
+	}
+	
 	// allocate memory
 	double *x = malloc(PART_NUM * sizeof(double));
 	double *v = malloc(PART_NUM * sizeof(double));
@@ -92,7 +132,7 @@ int main(int argc, char **argv) {
 	double potential;
 	
 	deposit(x, rho);
-	fields(rho, eField, phi, &potential);
+	fields(rho, eField, phi, NULL);
 
 	vHalfPush(x, v, eField, 0); // push backwards
 
@@ -103,6 +143,8 @@ int main(int argc, char **argv) {
 	printf("time,potential,kinetic,total,momentum\n");
 
 	for (int n = 0; open && n * DT < TMAX; n++) {
+		if (modeLog) fprintf(modeLog, "%f", n * DT);
+		
 		deposit(x, rho);
 		fields(rho, eField, phi, &potential);
 
@@ -128,6 +170,8 @@ int main(int argc, char **argv) {
 	}
 
 	// cleanup
+	if(modeLog) fclose(modeLog);
+	
 	free(x);
 	free(v);
 	free(color);
@@ -165,10 +209,10 @@ void init(double *x, double *v, int *color) {
 		//x[i] = x[i]*x[i] / XMAX;
 		//x[i] = bisect(0, XMAX, x[i]);
 		if (i % 2) {
-			v[i] = 8.0;
+			v[i] = BEAM_SPEED;
 			color[i] = 0xff0000;
 		} else {
-			v[i] = -8.0;
+			v[i] = -BEAM_SPEED;
 			color[i] = 0x0000ff;
 		}
 
@@ -232,6 +276,15 @@ void fields(double *rho, double *e, double *phi, double *potential) {
 			pot += phikBuf[j][0] * rhokBuf[j][0] + phikBuf[j][1] * rhokBuf[j][1];
 		}
 		*potential = pot * XMAX;
+
+		if (modeLog) {
+			for (int j = 1; j <= 4; j++) {
+				double etmp = phikBuf[j][0] * rhokBuf[j][0]
+					+ phikBuf[j][1] * rhokBuf[j][1];
+				fprintf(modeLog, ",%e", etmp);
+			}
+			fprintf(modeLog, "\n");
+		}
 	}
 	
 	// phi(k) -> phi(x)
