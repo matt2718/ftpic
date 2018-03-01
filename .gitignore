@@ -1,4 +1,5 @@
 ftpic
 oldpic
 *.o
+*.a
 *.csv

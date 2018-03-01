@@ -7,28 +7,30 @@
 
 #include <qdsp.h>
 
-// max run time
-const double TMAX = 15.0;
-
 const double XMAX = 16.0; // system length
-const int NGRID = 256; // grid size
+const int NGRID = 128; // grid size
 double DX;
 
 // particle number and properties
-const int PART_NUM = 40000;
-const double PART_MASS = 0.004;
+const int PART_NUM = 20000;
+const double PART_MASS = 0.005;
 const double PART_CHARGE = -0.01;
 const double EPS_0 = 1.0;
 
+const double BEAM_SPEED = 8.0;
+
 // time info
 const double DT = 0.0005;
-const double NMAX = 1000;
+const double TMAX = 20;
 
 // plans and buffers for fft
 fftw_plan rhoFFT;
 fftw_plan phiIFFT;
 double *rhoxBuf, *phixBuf;
 fftw_complex *rhokBuf, *phikBuf;
+
+FILE *modeLog = NULL;
+FILE *paramLog = NULL;
 
 void init(double *x, double *v, int *color);
 
@@ -43,6 +45,41 @@ void vDist();
 
 int main(int argc, char **argv) {
 	DX = XMAX / NGRID;
+
+	// parse arguments
+	for (int i = 1; i < argc - 1; i++) {
+		if (!strcmp(argv[i], "-p")) paramLog = fopen(argv[++i], "w");
+		if (!strcmp(argv[i], "-m")) modeLog = fopen(argv[++i], "w");
+	}
+
+	// dump parameters
+	if (paramLog) {
+		// basic
+		fprintf(paramLog, " particles: %i\n", PART_NUM);
+		fprintf(paramLog, "  timestep: %f\n", DT);
+		fprintf(paramLog, "    length: %f\n", XMAX);
+		fprintf(paramLog, "    v_beam: %f\n", BEAM_SPEED);
+		fprintf(paramLog, "      mass: %f\n", PART_MASS);
+		fprintf(paramLog, "    charge: %f\n", PART_CHARGE);
+		fprintf(paramLog, "     eps_0: %f\n", EPS_0);
+		fprintf(paramLog, "\n");
+
+		// Debye length
+		double kt = PART_MASS * BEAM_SPEED * BEAM_SPEED;
+		double dens = PART_NUM / XMAX;
+		double ne2 = (dens * PART_CHARGE * PART_CHARGE);
+		fprintf(paramLog, "    lambda: %f\n", sqrt(EPS_0 * kt / ne2));
+
+		// plasma frequency
+		fprintf(paramLog, " frequency: %f\n", sqrt(ne2 / (PART_MASS * EPS_0)));
+		fclose(paramLog);
+	}
+
+	// header for modes
+	if (modeLog) {
+		fprintf(modeLog, "time,m1,m2,m3,m4\n");
+	}
+	
 	// allocate memory
 	double *x = malloc(PART_NUM * sizeof(double));
 	double *v = malloc(PART_NUM * sizeof(double));
@@ -55,8 +92,8 @@ int main(int argc, char **argv) {
 	// transform buffers
 	rhoxBuf = fftw_malloc(NGRID * sizeof(double));
 	phixBuf = fftw_malloc(NGRID * sizeof(double));
-	rhokBuf = fftw_malloc(NGRID * sizeof(fftw_complex));
-	phikBuf = fftw_malloc(NGRID * sizeof(fftw_complex));
+	rhokBuf = fftw_malloc(NGRID/2 * sizeof(fftw_complex));
+	phikBuf = fftw_malloc(NGRID/2 * sizeof(fftw_complex));
 	// plan transforms
 	rhoFFT = fftw_plan_dft_r2c_1d(NGRID, rhoxBuf, rhokBuf, FFTW_MEASURE);
 	phiIFFT = fftw_plan_dft_c2r_1d(NGRID, phikBuf, phixBuf, FFTW_MEASURE);
@@ -74,9 +111,9 @@ int main(int argc, char **argv) {
 	qdspSetFramerate(phasePlot, 100);
 	
 	QDSPplot *phiPlot = qdspInit("Phi(x)");
-	qdspSetBounds(phiPlot, 0, XMAX, -50, 50);
+	qdspSetBounds(phiPlot, 0, XMAX, -100, 100);
 	qdspSetGridX(phiPlot, 0, 2, 0x888888);
-	qdspSetGridY(phiPlot, 0, 10, 0x888888);
+	qdspSetGridY(phiPlot, 0, 20, 0x888888);
 	qdspSetConnected(phiPlot, 1);
 	qdspSetPointColor(phiPlot, 0x000000);
 	qdspSetBGColor(phiPlot, 0xffffff);
@@ -84,7 +121,7 @@ int main(int argc, char **argv) {
 	QDSPplot *rhoPlot = qdspInit("Rho(x)");
 	qdspSetBounds(rhoPlot, 0, XMAX, -100, 100);
 	qdspSetGridX(rhoPlot, 0, 2, 0x888888);
-	qdspSetGridY(rhoPlot, 0, 20, 0x888888);
+	qdspSetGridY(rhoPlot, 0, 10, 0x888888);
 	qdspSetConnected(rhoPlot, 1);
 	qdspSetPointColor(rhoPlot, 0x000000);
 	qdspSetBGColor(rhoPlot, 0xffffff);
@@ -95,7 +132,8 @@ int main(int argc, char **argv) {
 	double potential;
 	
 	deposit(x, rho);
-	fields(rho, eField, phi, &potential);
+	fields(rho, eField, phi, NULL);
+
 	vHalfPush(x, v, eField, 0); // push backwards
 
 	int open = 1;
@@ -103,17 +141,18 @@ int main(int argc, char **argv) {
 	int rhoOn = 1;
 	
 	printf("time,potential,kinetic,total,momentum\n");
-	
+
 	for (int n = 0; open && n * DT < TMAX; n++) {
+		if (modeLog) fprintf(modeLog, "%f", n * DT);
+		
 		deposit(x, rho);
 		fields(rho, eField, phi, &potential);
 
 		vHalfPush(x, v, eField, 1);
 
 		open = qdspUpdateIfReady(phasePlot, x, v, color, PART_NUM);
-
 		// logging
-		if (n % 50 == 0) {
+		if (n % 10 == 0) {
 			double kinetic = kineticEnergy(v);
 			printf("%f,%f,%f,%f,%f\n",
 			       n * DT,
@@ -125,12 +164,14 @@ int main(int argc, char **argv) {
 
 		if (phiOn) phiOn = qdspUpdateIfReady(phiPlot, xar, phi, NULL, NGRID);
 		if (rhoOn) rhoOn = qdspUpdateIfReady(rhoPlot, xar, rho, NULL, NGRID);
-
+		//getchar();
 		vHalfPush(x, v, eField, 1);
 		xPush(x, v);
 	}
 
 	// cleanup
+	if(modeLog) fclose(modeLog);
+	
 	free(x);
 	free(v);
 	free(color);
@@ -153,16 +194,25 @@ int main(int argc, char **argv) {
 	return 0;
 }
 
+static double bisect(double x1, double x2, double y) {
+	double xmid = (x1 + x2) / 2;
+	double ymid = xmid + 0.25 * XMAX/(2*M_PI) * (1 - cos(2 * M_PI * xmid/XMAX));
+	if (ymid - y > 1e-9) return bisect(x1, xmid, y);
+	else if (ymid - y < -1e-9) return bisect(xmid, x2, y);
+	else return xmid;
+}
+
 void init(double *x, double *v, int *color) {
 	double stddev = sqrt(500 / (5.1e5));
 	for (int i = 0; i < PART_NUM; i++) {
 		x[i] = i * XMAX / PART_NUM;
-
+		//x[i] = x[i]*x[i] / XMAX;
+		//x[i] = bisect(0, XMAX, x[i]);
 		if (i % 2) {
-			v[i] = 8.0;
+			v[i] = BEAM_SPEED;
 			color[i] = 0xff0000;
 		} else {
-			v[i] = -8.0;
+			v[i] = -BEAM_SPEED;
 			color[i] = 0x0000ff;
 		}
 
@@ -170,6 +220,7 @@ void init(double *x, double *v, int *color) {
 		double r1 = (rand() + 1) / ((double)RAND_MAX + 1); // log(0) breaks stuff
 		double r2 = (rand() + 1) / ((double)RAND_MAX + 1);
 		v[i] += stddev * sqrt(-2 * log(r1)) * cos(2 * M_PI * r2);
+		//v[i] = 0;
 	}
 }
 
@@ -211,24 +262,31 @@ void fields(double *rho, double *e, double *phi, double *potential) {
 	// rho(k) -> phi(k)
 	phikBuf[0][0] = 0;
 	phikBuf[0][1] = 0;
-	for (int j = 1; j < NGRID; j++) {
+	for (int j = 1; j < NGRID/2; j++) {
 		double k = 2 * M_PI * j / XMAX;
-		double kadj = k * pow(sin(k*DX/2) / (k*DX/2), 2);
+		double ksqi = k * pow(sin(k*DX/2) / (k*DX/2), 2);
 		phikBuf[j][0] = rhokBuf[j][0] / (k * k * EPS_0);
 		phikBuf[j][1] = rhokBuf[j][1] / (k * k * EPS_0);
 	}
-
+	
 	// potential energy calculation
 	if (potential != NULL) {
 		double pot = 0;
-		for (int j = 1; j < NGRID; j++) {
-			double k = 2 * M_PI * j / XMAX;
-			pot += phikBuf[j][0] * rhokBuf[j][0] +
-				phikBuf[j][1] * rhokBuf[j][1];
+		for (int j = 0; j < NGRID/2; j++) {
+			pot += phikBuf[j][0] * rhokBuf[j][0] + phikBuf[j][1] * rhokBuf[j][1];
 		}
-		*potential = pot / DX;
-	}
+		*potential = pot * XMAX;
 
+		if (modeLog) {
+			for (int j = 1; j <= 4; j++) {
+				double etmp = phikBuf[j][0] * rhokBuf[j][0]
+					+ phikBuf[j][1] * rhokBuf[j][1];
+				fprintf(modeLog, ",%e", etmp);
+			}
+			fprintf(modeLog, "\n");
+		}
+	}
+	
 	// phi(k) -> phi(x)
 	fftw_execute(phiIFFT);
 	memcpy(phi, phixBuf, NGRID * sizeof(double));

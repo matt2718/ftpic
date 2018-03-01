@@ -5,9 +5,9 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 if (len(sys.argv) < 2):
-	exit(1)
-
-rawdata = pd.read_csv(sys.argv[1])
+	rawdata = pd.read_csv(sys.stdin)
+else:
+	rawdata = pd.read_csv(sys.argv[1])
 
 time = rawdata['time'].values
 ke = rawdata['kinetic'].values
@@ -34,6 +34,6 @@ plt.plot(time, p)
 
 plt.xlabel('Time')
 plt.ylabel('Momentum')
-plt.axes().set_ylim(0, 1.25*max(p))
+plt.axes().set_ylim(1.25*min(0,min(p)), 1.25*max(0,max(p)))
 
 plt.show()
