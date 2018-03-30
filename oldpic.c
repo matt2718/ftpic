@@ -12,12 +12,16 @@ const int NGRID = 128; // grid size
 double DX;
 
 // particle number and properties
-const int PART_NUM = 20000;
+const int PART_NUM = 10000;
 const double PART_MASS = 0.005;
 const double PART_CHARGE = -0.02;
 const double EPS_0 = 1.0;
 
 const double BEAM_SPEED = 8.0;
+
+double OMEGA_P;
+
+const int MODELOG_MAX = 64;
 
 // time info
 double DT = 0.0005;
@@ -32,7 +36,9 @@ fftw_complex *rhokBuf, *phikBuf;
 FILE *modeLog = NULL;
 FILE *paramLog = NULL;
 
-void init(double *x, double *v, int *color);
+void init2Stream(double *x, double *v, int *color);
+void initDisplace(double *x, double *v, int *color);
+void initRhoSin(double *x, double *v, int *color);
 
 void deposit(double *x, double *rho);
 void fields(double *rho, double *e, double *phi, double *potential);
@@ -84,28 +90,33 @@ int main(int argc, char **argv) {
 	if (paramLog) {
 		// basic
 		fprintf(paramLog, " particles: %i\n", PART_NUM);
-		fprintf(paramLog, "  timestep: %f\n", DT);
-		fprintf(paramLog, "    length: %f\n", XMAX);
-		fprintf(paramLog, "    v_beam: %f\n", BEAM_SPEED);
-		fprintf(paramLog, "      mass: %f\n", PART_MASS);
-		fprintf(paramLog, "    charge: %f\n", PART_CHARGE);
-		fprintf(paramLog, "     eps_0: %f\n", EPS_0);
+		fprintf(paramLog, "  timestep: %e\n", DT);
+		fprintf(paramLog, "    length: %e\n", XMAX);
+		fprintf(paramLog, "    v_beam: %e\n", BEAM_SPEED);
+		fprintf(paramLog, "      mass: %e\n", PART_MASS);
+		fprintf(paramLog, "    charge: %e\n", PART_CHARGE);
+		fprintf(paramLog, "     eps_0: %e\n", EPS_0);
 		fprintf(paramLog, "\n");
 
 		// Debye length
 		double kt = PART_MASS * BEAM_SPEED * BEAM_SPEED;
 		double dens = PART_NUM / XMAX;
 		double ne2 = (dens * PART_CHARGE * PART_CHARGE);
-		fprintf(paramLog, "    lambda: %f\n", sqrt(EPS_0 * kt / ne2));
+		fprintf(paramLog, "    lambda: %e\n", sqrt(EPS_0 * kt / ne2));
 
 		// plasma frequency
-		fprintf(paramLog, " frequency: %f\n", sqrt(ne2 / (PART_MASS * EPS_0)));
+		OMEGA_P = sqrt(ne2 / (PART_MASS * EPS_0));
+		fprintf(paramLog, " frequency: %e\n", OMEGA_P);
+
 		fclose(paramLog);
 	}
 
 	// header for modes
 	if (modeLog) {
-		fprintf(modeLog, "time,m1,m2,m3,m4\n");
+		fprintf(modeLog, "time");
+		for (int i = 1; i <= MODELOG_MAX; i++)
+			fprintf(modeLog, ",m%d", i);
+		fprintf(modeLog, "\n");
 	}
 	
 	// allocate memory
@@ -127,7 +138,7 @@ int main(int argc, char **argv) {
 	phiIFFT = fftw_plan_dft_c2r_1d(NGRID, phikBuf, phixBuf, FFTW_MEASURE);
 
 	// initialize particles
-	init(x, v, color);
+	initDisplace(x, v, color);
 
 	QDSPplot *phasePlot = NULL;
 	QDSPplot *phiPlot = NULL;
@@ -234,20 +245,12 @@ int main(int argc, char **argv) {
 	return 0;
 }
 
-static double bisect(double x1, double x2, double y) {
-	double xmid = (x1 + x2) / 2;
-	double ymid = xmid + 0.25 * XMAX/(2*M_PI) * (1 - cos(2 * M_PI * xmid/XMAX));
-	if (ymid - y > 1e-9) return bisect(x1, xmid, y);
-	else if (ymid - y < -1e-9) return bisect(xmid, x2, y);
-	else return xmid;
-}
-
-void init(double *x, double *v, int *color) {
+// 2-stream instability, standard test case
+void init2Stream(double *x, double *v, int *color) {
 	double stddev = sqrt(500 / (5.1e5));
 	for (int i = 0; i < PART_NUM; i++) {
 		x[i] = i * XMAX / PART_NUM;
-		//x[i] = x[i]*x[i] / XMAX;
-		//x[i] = bisect(0, XMAX, x[i]);
+
 		if (i % 2) {
 			v[i] = BEAM_SPEED;
 			color[i] = 0xff0000;
@@ -260,7 +263,44 @@ void init(double *x, double *v, int *color) {
 		double r1 = (rand() + 1) / ((double)RAND_MAX + 1); // log(0) breaks stuff
 		double r2 = (rand() + 1) / ((double)RAND_MAX + 1);
 		v[i] += stddev * sqrt(-2 * log(r1)) * cos(2 * M_PI * r2);
-		//v[i] = 0;
+	}
+}
+
+// displaced charges, see section 4 of:
+// Huang, et al, 2016. Finite grid instability and spectral fidelity of the
+// electrostatic Particle-In-Cell algorithm. Computer Physics Communications
+// 207, 123–135.
+void initDisplace(double *x, double *v, int *color) {
+	int mode = 9;
+	double ampl = 0.1;
+	for (int i = 0; i < PART_NUM; i++) {
+		x[i] = i * XMAX / PART_NUM;
+		x[i] += ampl * XMAX  / (2 * M_PI * mode)
+			* cos(2 * M_PI * mode * x[i] / XMAX);
+
+		v[i] = 0.1;
+		v[i] = ampl * OMEGA_P * XMAX / (2 * M_PI * mode)
+			* sin(2 * M_PI * mode * x[i] / XMAX);
+
+		color[i] = 0x0000ff;
+	}
+}
+
+// helper function for initRhoSin
+static double bisect(double x1, double x2, double y) {
+	double xmid = (x1 + x2) / 2;
+	double ymid = xmid + 0.25 * XMAX/(2*M_PI) * (1 - cos(2 * M_PI * xmid/XMAX));
+	if (ymid - y > 1e-9) return bisect(x1, xmid, y);
+	else if (ymid - y < -1e-9) return bisect(xmid, x2, y);
+	else return xmid;
+}
+
+// sinusoidal charge dist
+void initRhoSin(double *x, double *v, int *color) {
+	for (int i = 0; i < PART_NUM; i++) {
+		x[i] = bisect(0, XMAX, i * XMAX / PART_NUM);
+		v[i] = 0;
+		color[i] = 0x0000ff;
 	}
 }
 
@@ -318,7 +358,7 @@ void fields(double *rho, double *e, double *phi, double *potential) {
 		*potential = pot * XMAX;
 
 		if (modeLog) {
-			for (int j = 1; j <= 4; j++) {
+			for (int j = 1; j <= MODELOG_MAX; j++) {
 				double etmp = phikBuf[j][0] * rhokBuf[j][0]
 					+ phikBuf[j][1] * rhokBuf[j][1];
 				fprintf(modeLog, ",%e", etmp);

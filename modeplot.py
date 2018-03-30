@@ -5,11 +5,11 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
-plt.figure(1)
-
 if len(sys.argv) < 3: exit()
 
 modename = sys.argv[1]
+
+plt.figure(num=modename)
 
 for myfile in sys.argv[2:]:
 	rawdata = pd.read_csv(myfile)
@@ -22,6 +22,6 @@ for myfile in sys.argv[2:]:
 plt.xlabel('Time')
 plt.ylabel('log(E_' + modename + ')')
 
-plt.legend()
+plt.legend(loc=4)
 
 plt.show()
