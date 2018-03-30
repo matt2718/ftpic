@@ -53,10 +53,9 @@ void initDisplace(double *x, double *v, int *color);
 void initRhoSin(double *x, double *v, int *color);
 
 void deposit(double *x, fftw_complex *rhok, fftw_complex *sk);
-void fields(fftw_complex *rhok, fftw_complex *sk, double *e, double *phi,
-            double *potential);
+void fields(fftw_complex *rhok, fftw_complex *sk, double *phi, double *potential);
 void xPush(double *x, double *v);
-void vHalfPush(double *x, double *v, double *e, int forward);
+void vHalfPush(double *x, double *v, int forward);
 
 double kineticEnergy(double *v);
 double momentum(double *v);
@@ -139,7 +138,6 @@ int main(int argc, char **argv) {
 	fftw_complex *rhok = fftw_malloc(NGRID * sizeof(fftw_complex));
 	double *rhox = fftw_malloc(NGRID * sizeof(double));
 	double *phix = fftw_malloc(NGRID * sizeof(double));
-	double *ex = fftw_malloc(NGRID * sizeof(double));
 
 	double *sx = fftw_malloc(NGRID * sizeof(double));
 	fftw_complex *sk = fftw_malloc(NGRID * sizeof(fftw_complex));
@@ -226,9 +224,9 @@ int main(int argc, char **argv) {
 	double potential;
 	
 	deposit(x, rhok, sk);
-	fields(rhok, sk, ex, phix, &potential);
+	fields(rhok, sk, phix, &potential);
 	
-	vHalfPush(x, v, ex, 0);
+	vHalfPush(x, v, 0);
 
 	int open = 1;
 
@@ -241,9 +239,9 @@ int main(int argc, char **argv) {
 		if (modeLog) fprintf(modeLog, "%f", n * DT);
 
 		deposit(x, rhok, sk);
-		fields(rhok, sk, ex, phix, &potential);
+		fields(rhok, sk, phix, &potential);
 
-		vHalfPush(x, v, ex, 1);
+		vHalfPush(x, v, 1);
 
 		if (phasePlotOn)
 			open = qdspUpdateIfReady(phasePlot, x, v, color, PART_NUM);
@@ -270,7 +268,7 @@ int main(int argc, char **argv) {
 			rhoPlotOn = qdspUpdateIfReady(rhoPlot, xar, rhox, NULL, NGRID);
 		}
 		
-		vHalfPush(x, v, ex, 1);
+		vHalfPush(x, v, 1);
 		xPush(x, v);
 	}
 
@@ -288,7 +286,6 @@ int main(int argc, char **argv) {
 	fftw_free(rhok);
 	fftw_free(rhox);
 	fftw_free(phix);
-	fftw_free(ex);
 
 	fftw_free(sx);
 	fftw_free(sk);
@@ -399,9 +396,8 @@ void deposit(double *x, fftw_complex *rhok, fftw_complex *sk) {
 	rhok[0][0] = 0;
 }
 
-
-void fields(fftw_complex *rhok, fftw_complex *sk, double *e, double *phi,
-            double *potential) {
+// determine phi and e from rho(k) 
+void fields(fftw_complex *rhok, fftw_complex *sk, double *phi, double *potential) {
 	
 	// rho(k) -> phi(k)
 	phikBuf[0][0] = 0;
@@ -440,12 +436,6 @@ void fields(fftw_complex *rhok, fftw_complex *sk, double *e, double *phi,
 	// phi(k) -> phi(x)
 	fftw_execute(phiIFFT);
 	memcpy(phi, phixBuf, NGRID * sizeof(double));
-	
-	// determine E(x) via finite difference
-	e[0] = (phi[NGRID-1] - phi[1]) / (2 * DX);
-	e[NGRID-1] = (phi[NGRID-2] - phi[0]) / (2 * DX);
-	for (int j = 1; j < NGRID - 1; j++)
-		e[j] = (phi[j-1] - phi[j+1]) / (2 * DX);
 }
 
 // pushes particles, electric field calculated via linear interpoation
@@ -462,7 +452,7 @@ void xPush(double *x, double *v) {
 	}
 }
 
-void vHalfPush(double *x, double *v, double *e, int forward) {
+void vHalfPush(double *x, double *v, int forward) {
 	// calculate forces from E(k)
 	int nc = NGRID;
 	int np = PART_NUM;
@@ -481,7 +471,6 @@ void vHalfPush(double *x, double *v, double *e, int forward) {
 #pragma omp parallel for
 	for (int m = 0; m < PART_NUM; m++) {
 		xpBuf[m] = x[m] / XMAX;
-		//if (xpBuf[m] >= 0.5) xpBuf[m] -= 1.0;
 	}
 	
 	uf1a_(&nc, (double*)ekBuf, &np, xpBuf, (double*)epBuf, &isign, &order);
