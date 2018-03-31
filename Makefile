@@ -10,8 +10,15 @@ all: oldpic ftpic
 debug: oldpic ftpic
 debug: CFLAGS += -g -O0
 
-oldpic: oldpic.c
-	$(CC) -o oldpic $(CFLAGS) $(LDFLAGS) oldpic.c $(LDLIBS)
+oldpic: oldpic.o common.o
+	$(CC) -o oldpic $(CFLAGS) $(LDFLAGS) oldpic.o common.o $(LDLIBS)
 
-ftpic: ftpic.c
-	$(CC) -o ftpic $(CFLAGS) $(LDFLAGS) ftpic.c libusfft.a -lgfortran $(LDLIBS)
+ftpic: ftpic.o common.o
+	$(CC) -o ftpic $(CFLAGS) $(LDFLAGS) ftpic.o common.o libusfft.a -lgfortran $(LDLIBS)
+
+common.o: common.h
+oldpic.o: common.h
+ftpic.o: common.h
+
+.c.o:
+	$(CC) -o $@ -c $(CFLAGS) $<

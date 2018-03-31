@@ -7,6 +7,8 @@
 
 #include <qdsp.h>
 
+#include "common.h"
+
 const double XMAX = 16.0; // system length
 const int NGRID = 128; // grid size
 double DX;
@@ -47,10 +49,6 @@ extern void uf1t_(int*, double*, int*, double*, double*, int*, int*);
 extern void uf1a_(int*, double*, int*, double*, double*, int*, int*);
 
 double shape(double x);
-
-void init2Stream(double *x, double *v, int *color);
-void initDisplace(double *x, double *v, int *color);
-void initRhoSin(double *x, double *v, int *color);
 
 void deposit(double *x, fftw_complex *rhok, fftw_complex *sk);
 void fields(fftw_complex *rhok, fftw_complex *sk, double *phi, double *potential);
@@ -183,7 +181,7 @@ int main(int argc, char **argv) {
 	fftw_destroy_plan(sFFT);
 	
 	// initialize particles
-	initDisplace(x, v, color);
+	initDisplace(x, v, color, PART_NUM, XMAX, OMEGA_P);
 
 	QDSPplot *phasePlot = NULL;
 	QDSPplot *phiPlot = NULL;
@@ -308,65 +306,6 @@ double shape(double x) {
 	//return fmax(1 - fabs(x/DX), 0);
 }
 
-// 2-stream instability, standard test case
-void init2Stream(double *x, double *v, int *color) {
-	double stddev = sqrt(500 / (5.1e5));
-	for (int i = 0; i < PART_NUM; i++) {
-		x[i] = i * XMAX / PART_NUM;
-
-		if (i % 2) {
-			v[i] = BEAM_SPEED;
-			color[i] = 0xff0000;
-		} else {
-			v[i] = -BEAM_SPEED;
-			color[i] = 0x0000ff;
-		}
-
-		// box-mueller
-		double r1 = (rand() + 1) / ((double)RAND_MAX + 1); // log(0) breaks stuff
-		double r2 = (rand() + 1) / ((double)RAND_MAX + 1);
-		v[i] += stddev * sqrt(-2 * log(r1)) * cos(2 * M_PI * r2);
-	}
-}
-
-// displaced charges, see section 4 of:
-// Huang, et al, 2016. Finite grid instability and spectral fidelity of the
-// electrostatic Particle-In-Cell algorithm. Computer Physics Communications
-// 207, 123–135.
-void initDisplace(double *x, double *v, int *color) {
-	int mode = 9;
-	double ampl = 0.1;
-	for (int i = 0; i < PART_NUM; i++) {
-		x[i] = i * XMAX / PART_NUM;
-		x[i] += ampl * XMAX  / (2 * M_PI * mode)
-			* cos(2 * M_PI * mode * x[i] / XMAX);
-
-		v[i] = 0.01;
-		v[i] = ampl * OMEGA_P * XMAX / (2 * M_PI * mode)
-			* sin(2 * M_PI * mode * x[i] / XMAX);
-
-		color[i] = 0x0000ff;
-	}
-}
-
-// helper function for initRhoSin
-static double bisect(double x1, double x2, double y) {
-	double xmid = (x1 + x2) / 2;
-	double ymid = xmid + 0.25 * XMAX/(2*M_PI) * (1 - cos(2 * M_PI * xmid/XMAX));
-	if (ymid - y > 1e-9) return bisect(x1, xmid, y);
-	else if (ymid - y < -1e-9) return bisect(xmid, x2, y);
-	else return xmid;
-}
-
-// sinusoidal charge dist
-void initRhoSin(double *x, double *v, int *color) {
-	for (int i = 0; i < PART_NUM; i++) {
-		x[i] = bisect(0, XMAX, i * XMAX / PART_NUM);
-		v[i] = 0;
-		color[i] = 0x0000ff;
-	}
-}
-
 // determines rho(k) from list of particle positions
 void deposit(double *x, fftw_complex *rhok, fftw_complex *sk) {
 
@@ -438,7 +377,7 @@ void fields(fftw_complex *rhok, fftw_complex *sk, double *phi, double *potential
 	memcpy(phi, phixBuf, NGRID * sizeof(double));
 }
 
-// pushes particles, electric field calculated via linear interpoation
+// moves particles given velocities
 void xPush(double *x, double *v) {
 #pragma omp parallel for
 	for (int i = 0; i < PART_NUM; i++) {
@@ -452,6 +391,7 @@ void xPush(double *x, double *v) {
 	}
 }
 
+// interpolates E field on particles and accelerates them 1/2 timestep
 void vHalfPush(double *x, double *v, int forward) {
 	// calculate forces from E(k)
 	int nc = NGRID;
