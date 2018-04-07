@@ -5,6 +5,20 @@
 
 #include "common.h"
 
+const double XMAX = 16.0; // system length
+const int NGRID = 64; // grid size
+double DX;
+
+// particle number and properties
+const int PART_NUM = 10000;
+const double PART_MASS = 0.005;
+const double PART_CHARGE = -0.02;
+const double EPS_0 = 1.0;
+
+const double BEAM_SPEED = 8.0;
+
+double OMEGA_P;
+
 // helper function for initRhoSin
 static double bisect(double x1, double x2, double y, double XMAX) {
 	double xmid = (x1 + x2) / 2;
@@ -15,9 +29,7 @@ static double bisect(double x1, double x2, double y, double XMAX) {
 }
 
 // 2-stream instability, standard test case
-void init2Stream(double *x, double *v, int *color, int PART_NUM,
-                 double XMAX, double BEAM_SPEED) {
-	
+void init2Stream(double *x, double *v, int *color) {
 	double stddev = sqrt(500 / (5.1e5));
 	for (int i = 0; i < PART_NUM; i++) {
 		x[i] = i * XMAX / PART_NUM;
@@ -42,16 +54,18 @@ void init2Stream(double *x, double *v, int *color, int PART_NUM,
 // Huang, et al, 2016. Finite grid instability and spectral fidelity of the
 // electrostatic Particle-In-Cell algorithm. Computer Physics Communications
 // 207, 123–135.
-void initDisplace(double *x, double *v, int *color, int PART_NUM,
-                  double XMAX, double OMEGA_P) {
+void initStanding(double *x, double *v, int *color) {
+	OMEGA_P = sqrt((PART_NUM/XMAX) * (PART_CHARGE*PART_CHARGE)
+	               / (PART_MASS * EPS_0));
+	
 	int mode = 9;
-	double ampl = 0.1;
+	double ampl = 0.2;
+	
 	for (int i = 0; i < PART_NUM; i++) {
 		x[i] = i * XMAX / PART_NUM;
 		x[i] += ampl * XMAX  / (2 * M_PI * mode)
 			* cos(2 * M_PI * mode * x[i] / XMAX);
 
-		v[i] = 0.01;
 		v[i] = ampl * OMEGA_P * XMAX / (2 * M_PI * mode)
 			* sin(2 * M_PI * mode * x[i] / XMAX);
 
@@ -59,9 +73,35 @@ void initDisplace(double *x, double *v, int *color, int PART_NUM,
 	}
 }
 
+// wave in maxwellian, used to test Landau damping
+void initLandau(double *x, double *v, int *color) {
+	int mode = 3;
+	double ampl = 0.5;
+	double stddev = sqrt(8);
+	
+	for (int i = 0; i < PART_NUM; i++) {
+		// spatially uniform
+		x[i] = i * XMAX / PART_NUM;
+
+		// init maxwellian distro
+		// box-mueller
+		double r1 = (rand() + 1) / ((double)RAND_MAX + 1); // log(0) breaks stuff
+		double r2 = (rand() + 1) / ((double)RAND_MAX + 1);
+		v[i] = stddev * sqrt(-2 * log(r1)) * cos(2 * M_PI * r2);
+
+		// wave perturbation
+		x[i] += ampl * XMAX  / (2 * M_PI * mode)
+			* sin(2 * M_PI * mode * x[i] / XMAX);
+		
+		color[i] = 0x0000ff;
+
+
+	}
+}
+
 // sinusoidal charge dist with no initial velocity
 // not super useful as a test case, but can make sure the code isn't broken
-void initRhoSin(double *x, double *v, int *color, int PART_NUM, double XMAX) {
+void initRhoSin(double *x, double *v, int *color) {
 	for (int i = 0; i < PART_NUM; i++) {
 		x[i] = bisect(0, XMAX, i * XMAX / PART_NUM, XMAX);
 		v[i] = 0;

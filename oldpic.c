@@ -9,25 +9,11 @@
 
 #include "common.h"
 
-const double XMAX = 16.0; // system length
-const int NGRID = 128; // grid size
-double DX;
-
-// particle number and properties
-const int PART_NUM = 10000;
-const double PART_MASS = 0.005;
-const double PART_CHARGE = -0.02;
-const double EPS_0 = 1.0;
-
-const double BEAM_SPEED = 8.0;
-
-double OMEGA_P;
-
 const int MODELOG_MAX = 64;
 
 // time info
-double DT = 0.0005;
-double TMAX = 10;
+double DT = 0.001;
+double TMAX = 20;
 
 // plans and buffers for fft
 fftw_plan rhoFFT;
@@ -136,7 +122,8 @@ int main(int argc, char **argv) {
 	phiIFFT = fftw_plan_dft_c2r_1d(NGRID, phikBuf, phixBuf, FFTW_MEASURE);
 
 	// initialize particles
-	initDisplace(x, v, color, PART_NUM, XMAX, OMEGA_P);
+	initLandau(x, v, color);
+	//init2Stream(x, v, color);
 
 	QDSPplot *phasePlot = NULL;
 	QDSPplot *phiPlot = NULL;
