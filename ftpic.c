@@ -9,7 +9,7 @@
 
 #include "common.h"
 
-const int MODELOG_MAX = 64;
+const int MODELOG_MAX = 32;
 
 // time info
 double DT = 0.001;
@@ -167,8 +167,8 @@ int main(int argc, char **argv) {
 	fftw_destroy_plan(sFFT);
 	
 	// initialize particles
-	initLandau(x, v, color);
-	//init2Stream(x, v, color);
+	//initLandau(x, v, color);
+	init2Stream(x, v, color);
 
 	QDSPplot *phasePlot = NULL;
 	QDSPplot *phiPlot = NULL;
@@ -286,7 +286,7 @@ int main(int argc, char **argv) {
 
 // particle shape function, centered at 0, gaussian in this case
 double shape(double x) {
-	//const double sigma = 0.05;
+	//const double sigma = 1;
 	//return exp(-x*x / (2 * sigma * sigma)) / sqrt(2 * M_PI * sigma * sigma);
 	return 1.0 * (x == 0);
 	//return fmax(1 - fabs(x/DX), 0);
@@ -344,7 +344,10 @@ void fields(fftw_complex *rhok, fftw_complex *sk, double *phi, double *potential
 	if (potential != NULL) {
 		double pot = 0;
 		for (int j = 1; j < NGRID / 2; j++) {
-			pot += phikBuf[j][0] * rhok[j][0] + phikBuf[j][1] * rhok[j][1];
+			double k = 2 * M_PI * j / XMAX;
+			// we don't use phi[j] directly because it's already been convoluted
+			double tmp = rhok[j][0] * rhok[j][0] + rhok[j][1] * rhok[j][1];
+			pot += tmp / (k * k * EPS_0);
 		}
 		*potential = pot * XMAX;
 

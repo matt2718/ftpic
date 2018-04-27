@@ -6,11 +6,11 @@
 #include "common.h"
 
 const double XMAX = 16.0; // system length
-const int NGRID = 256; // grid size
+const int NGRID = 64; // grid size
 double DX;
 
 // particle number and properties
-const int PART_NUM = 5000;
+const int PART_NUM = 10000;
 const double PART_MASS = 0.005;
 const double PART_CHARGE = -0.01;
 const double EPS_0 = 1.0;
@@ -20,7 +20,9 @@ const double BEAM_SPEED = 8.0;
 double OMEGA_P;
 
 // wave periods per system length for standing wave and landau damping
-const int WAVE_MODE = 3;
+const int WAVE_MODE = 1;
+const double PERTURB_AMPL = 0.25;
+const double V_TH = 3.5; // sqrt(kt/m)
 
 // 2-stream instability, standard test case
 void init2Stream(double *x, double *v, int *color) {
@@ -70,17 +72,16 @@ void initStanding(double *x, double *v, int *color) {
 // use newton's method to find inverse of position CDF
 static double newton(double u) {
 	double k = WAVE_MODE * 2*M_PI/XMAX;
-	double ampl = 0.4;
 	
 	// find root of x/L + a/(k L) sin(k x) - u = 0
 	// derivative is 1/L + a/L cos(k x)
 	double x = u * XMAX;
-	double f = x/XMAX + ampl / (k * XMAX) * sin(k * x) - u;
+	double f = x/XMAX + PERTURB_AMPL / (k * XMAX) * sin(k * x) - u;
 
 	while (fabs(f) > 1e-9) {
-		double fprime = 1/XMAX + ampl / XMAX * cos(k * x);
+		double fprime = 1/XMAX + PERTURB_AMPL / XMAX * cos(k * x);
 		x -= f / fprime;
-		f = x/XMAX + ampl / (k * XMAX) * sin(k * x) - u;
+		f = x/XMAX + PERTURB_AMPL / (k * XMAX) * sin(k * x) - u;
 	}
 
 	return x;
@@ -90,8 +91,6 @@ static double newton(double u) {
 // distribution function: f(x,v) = exp(-1/2 (v/v_th)^2) / (sqrt(2 Pi) * v_th)
 //                                 * (1 + a cos(k x)) / L
 void initLandau(double *x, double *v, int *color) {
-	double vth = 1; // sqrt(kt/m)
-
 	for (int i = 0; i < PART_NUM; i++) {
 		// charge distribution produced via inverse transform sampling
 		x[i] = newton(i / (double)PART_NUM);
@@ -100,7 +99,7 @@ void initLandau(double *x, double *v, int *color) {
 		// box-mueller
 		double r1 = (rand() + 1) / ((double)RAND_MAX + 1); // log(0) breaks stuff
 		double r2 = (rand() + 1) / ((double)RAND_MAX + 1);
-		v[i] = vth * sqrt(-2 * log(r1)) * cos(2 * M_PI * r2);
+		v[i] = V_TH * sqrt(-2 * log(r1)) * cos(2 * M_PI * r2);
 		
 		color[i] = 0x0000ff;
 	}

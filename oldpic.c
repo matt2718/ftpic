@@ -9,7 +9,7 @@
 
 #include "common.h"
 
-const int MODELOG_MAX = 64;
+const int MODELOG_MAX = 32;
 
 // time info
 double DT = 0.001;
@@ -122,8 +122,8 @@ int main(int argc, char **argv) {
 	phiIFFT = fftw_plan_dft_c2r_1d(NGRID, phikBuf, phixBuf, FFTW_MEASURE);
 
 	// initialize particles
-	initLandau(x, v, color);
-	//init2Stream(x, v, color);
+	//initLandau(x, v, color);
+	init2Stream(x, v, color);
 
 	QDSPplot *phasePlot = NULL;
 	QDSPplot *phiPlot = NULL;
