@@ -9,11 +9,7 @@
 
 #include "common.h"
 
-const int MODELOG_MAX = 32;
-
-// time info
-double DT = 0.001;
-double TMAX = 20;
+//qconst int MODELOG_MAX = 32;
 
 // plans and buffers for fft
 fftw_plan rhoFFT;
@@ -21,7 +17,7 @@ fftw_plan phiIFFT;
 double *rhoxBuf, *phixBuf;
 fftw_complex *rhokBuf, *phikBuf;
 
-FILE *modeLog = NULL;
+//FILE *modeLog = NULL;
 FILE *paramLog = NULL;
 
 void deposit(double *x, double *rho);
@@ -35,73 +31,6 @@ void vDist();
 
 int main(int argc, char **argv) {
 	DX = XMAX / NGRID;
-
-	// whether to plot
-	int phasePlotOn = 1;
-	int phiPlotOn = 1;
-	int rhoPlotOn = 1;
-	
-	// parse arguments
-	for (int i = 1; i < argc; i++) {
-		// log file for parameters
-		if (!strcmp(argv[i], "-p")) {
-			if (++i == argc) return 1;
-			paramLog = fopen(argv[i], "w");
-		}
-
-		// log file for modes
-		if (!strcmp(argv[i], "-m")) {
-			if (++i == argc) return 1;
-			modeLog = fopen(argv[i], "w");
-		}
-
-		// time step and limit
-		if (!strcmp(argv[i], "-t")) {
-			if (++i == argc) return 1;
-			sscanf(argv[i], "%lf,%lf", &DT, &TMAX);
-			if (DT <= 0) return 1;
-		}
-
-		// quiet, do not render plots
-		if (!strcmp(argv[i], "-q")) {
-			phasePlotOn = 0;
-			phiPlotOn = 0;
-			rhoPlotOn = 0;
-		}
-	}
-
-	// dump parameters
-	if (paramLog) {
-		// basic
-		fprintf(paramLog, " particles: %i\n", PART_NUM);
-		fprintf(paramLog, "  timestep: %e\n", DT);
-		fprintf(paramLog, "    length: %e\n", XMAX);
-		fprintf(paramLog, "    v_beam: %e\n", BEAM_SPEED);
-		fprintf(paramLog, "      mass: %e\n", PART_MASS);
-		fprintf(paramLog, "    charge: %e\n", PART_CHARGE);
-		fprintf(paramLog, "     eps_0: %e\n", EPS_0);
-		fprintf(paramLog, "\n");
-
-		// Debye length
-		double kt = PART_MASS * BEAM_SPEED * BEAM_SPEED;
-		double dens = PART_NUM / XMAX;
-		double ne2 = (dens * PART_CHARGE * PART_CHARGE);
-		fprintf(paramLog, "    lambda: %e\n", sqrt(EPS_0 * kt / ne2));
-
-		// plasma frequency
-		OMEGA_P = sqrt(ne2 / (PART_MASS * EPS_0));
-		fprintf(paramLog, " frequency: %e\n", OMEGA_P);
-
-		fclose(paramLog);
-	}
-
-	// header for modes
-	if (modeLog) {
-		fprintf(modeLog, "time");
-		for (int i = 1; i <= MODELOG_MAX; i++)
-			fprintf(modeLog, ",m%d", i);
-		fprintf(modeLog, "\n");
-	}
 	
 	// allocate memory
 	double *x = malloc(PART_NUM * sizeof(double));
@@ -121,10 +50,16 @@ int main(int argc, char **argv) {
 	rhoFFT = fftw_plan_dft_r2c_1d(NGRID, rhoxBuf, rhokBuf, FFTW_MEASURE);
 	phiIFFT = fftw_plan_dft_c2r_1d(NGRID, phikBuf, phixBuf, FFTW_MEASURE);
 
-	// initialize particles
-	//initLandau(x, v, color);
-	init2Stream(x, v, color);
+	int quiet;
+	// parse command line arguments, initialize simulation, and set up logging
+	int ret = commonInit(argc, argv, x, v, color, &quiet);
+	if (!ret) return ret;
 
+	// whether to plot
+	int phasePlotOn = 1;
+	int phiPlotOn = 1;
+	int rhoPlotOn = 1;
+	
 	QDSPplot *phasePlot = NULL;
 	QDSPplot *phiPlot = NULL;
 	QDSPplot *rhoPlot = NULL;
