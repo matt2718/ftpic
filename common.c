@@ -27,7 +27,7 @@ double OMEGA_P;
 const double BEAM_SPEED = 8.0;
 const double V_TH = 3.5; // sqrt(kt/m)
 
-// wave periods per system length for standing wave and landau damping
+// wave periods per system length for wave and landau damping
 const int WAVE_MODE = 2;
 const double PERTURB_AMPL = 0.25;
 
@@ -54,7 +54,7 @@ int commonInit(int argc, char **argv,
 
 			if (!strcmp(argv[i], "2stream")) initType = 1;
 			else if (!strcmp(argv[i], "landau")) initType = 2;
-			else if (!strcmp(argv[i], "standing")) initType = 3;
+			else if (!strcmp(argv[i], "wave")) initType = 3;
 		}
 		
 		// log file for parameters
@@ -92,7 +92,7 @@ int commonInit(int argc, char **argv,
 	} else if (initType == 2) {
 		initLandau(x, v, color);
 	} else if (initType == 3) {
-		initStanding(x, v, color);
+		initWave(x, v, color);
 	}
 
 	// dump parameters
@@ -131,7 +131,7 @@ int commonInit(int argc, char **argv,
 		fprintf(modeLog, "\n");
 	}
 
-	return 1;
+	return 0;
 }
 
 // 2-stream instability, standard test case
@@ -192,12 +192,12 @@ void initLandau(double *x, double *v, int *color) {
 	}
 }
 
-// standing wave, displaced charges. this should oscillate as a single mode, but
+// traveling wave, displaced charges. this should oscillate as a single mode, but
 // this doesn't happen in standard PIC. see section 4 of:
 // Huang, et al, 2016. Finite grid instability and spectral fidelity of the
 // electrostatic Particle-In-Cell algorithm. Computer Physics Communications
 // 207, 123–135.
-void initStanding(double *x, double *v, int *color) {
+void initWave(double *x, double *v, int *color) {
 	OMEGA_P = sqrt((PART_NUM/XMAX) * (PART_CHARGE*PART_CHARGE)
 	               / (PART_MASS * EPS_0));
 	
@@ -208,6 +208,8 @@ void initStanding(double *x, double *v, int *color) {
 		x[i] += ampl * XMAX  / (2 * M_PI * WAVE_MODE)
 			* cos(2 * M_PI * WAVE_MODE * x[i] / XMAX);
 
+		x[i] = fmod(x[i], XMAX);
+		
 		v[i] = ampl * OMEGA_P * XMAX / (2 * M_PI * WAVE_MODE)
 			* sin(2 * M_PI * WAVE_MODE * x[i] / XMAX);
 

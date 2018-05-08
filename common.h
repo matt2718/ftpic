@@ -30,6 +30,6 @@ void init2Stream(double *x, double *v, int *color);
 
 void initLandau(double *x, double *v, int *color);
 
-void initStanding(double *x, double *v, int *color);
+void initWave(double *x, double *v, int *color);
 
 #endif

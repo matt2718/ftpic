@@ -44,8 +44,8 @@ int main(int argc, char **argv) {
 	// transform buffers
 	rhoxBuf = fftw_malloc(NGRID * sizeof(double));
 	phixBuf = fftw_malloc(NGRID * sizeof(double));
-	rhokBuf = fftw_malloc(NGRID/2 * sizeof(fftw_complex));
-	phikBuf = fftw_malloc(NGRID/2 * sizeof(fftw_complex));
+	rhokBuf = fftw_malloc(NGRID * sizeof(fftw_complex));
+	phikBuf = fftw_malloc(NGRID * sizeof(fftw_complex));
 	// plan transforms
 	rhoFFT = fftw_plan_dft_r2c_1d(NGRID, rhoxBuf, rhokBuf, FFTW_MEASURE);
 	phiIFFT = fftw_plan_dft_c2r_1d(NGRID, phikBuf, phixBuf, FFTW_MEASURE);
@@ -53,12 +53,12 @@ int main(int argc, char **argv) {
 	int quiet;
 	// parse command line arguments, initialize simulation, and set up logging
 	int ret = commonInit(argc, argv, x, v, color, &quiet);
-	if (!ret) return ret;
+	if (ret) return ret;
 
 	// whether to plot
-	int phasePlotOn = 1;
-	int phiPlotOn = 1;
-	int rhoPlotOn = 1;
+	int phasePlotOn = !quiet;
+	int phiPlotOn = !quiet;
+	int rhoPlotOn = !quiet;
 	
 	QDSPplot *phasePlot = NULL;
 	QDSPplot *phiPlot = NULL;
@@ -174,14 +174,16 @@ void deposit(double *x, double *rho) {
 	{
 		double *myRho = calloc(NGRID, sizeof(double));
 
+		int jmax = 0;
 #pragma omp for
 		for (int i = 0; i < PART_NUM; i++) {
 			int j = x[i] / DX;
+			if (j > jmax) jmax = j;
 			double xg = j * DX;
 			myRho[j] += PART_CHARGE * (xg + DX - x[i]) / (DX * DX);
 			myRho[(j+1) % NGRID] += PART_CHARGE * (x[i] - xg) / (DX * DX);
 		}
-				
+
 #pragma omp critical
 		{
 			for (int j = 0; j < NGRID; j++)

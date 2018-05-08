@@ -93,7 +93,7 @@ int main(int argc, char **argv) {
 	int quiet;
 	// parse command line arguments, initialize simulation, and set up logging
 	int ret = commonInit(argc, argv, x, v, color, &quiet);
-	if (!ret) return ret;
+	if (ret) return ret;
 
 	// whether to plot
 	int phasePlotOn = !quiet;
