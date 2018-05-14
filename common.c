@@ -71,7 +71,7 @@ int commonInit(int argc, char **argv, double *x, double *v, int *color,
 		}
 
 		// time step and limit
-		if (!strcmp(argv[i], "-t")) {
+		if (!strcmp(argv[i], "-tg")) {
 			if (++i == argc) return 1;
 			sscanf(argv[i], "%lf,%lf", &DT, &TMAX);
 			if (DT <= 0) return 1;
@@ -133,28 +133,30 @@ int commonInit(int argc, char **argv, double *x, double *v, int *color,
 	}
 
 	// set up plots
-	*phasePlot = qdspInit("Phase plot");
-	qdspSetBounds(*phasePlot, 0, XMAX, -30, 30);
-	qdspSetGridX(*phasePlot, 0, 2, 0x888888);
-	qdspSetGridY(*phasePlot, 0, 10, 0x888888);
-	qdspSetPointColor(*phasePlot, 0x000000);
-	qdspSetBGColor(*phasePlot, 0xffffff);
+	if (!quiet) {
+		*phasePlot = qdspInit("Phase plot");
+		qdspSetBounds(*phasePlot, 0, XMAX, -30, 30);
+		qdspSetGridX(*phasePlot, 0, 2, 0x888888);
+		qdspSetGridY(*phasePlot, 0, 10, 0x888888);
+		qdspSetPointColor(*phasePlot, 0x000000);
+		qdspSetBGColor(*phasePlot, 0xffffff);
 
-	*phiPlot = qdspInit("Phi(x)");
-	qdspSetBounds(*phiPlot, 0, XMAX, -100, 100);
-	qdspSetGridX(*phiPlot, 0, 2, 0x888888);
-	qdspSetGridY(*phiPlot, 0, 20, 0x888888);
-	qdspSetConnected(*phiPlot, 1);
-	qdspSetPointColor(*phiPlot, 0x000000);
-	qdspSetBGColor(*phiPlot, 0xffffff);
+		*phiPlot = qdspInit("Phi(x)");
+		qdspSetBounds(*phiPlot, 0, XMAX, -100, 100);
+		qdspSetGridX(*phiPlot, 0, 2, 0x888888);
+		qdspSetGridY(*phiPlot, 0, 20, 0x888888);
+		qdspSetConnected(*phiPlot, 1);
+		qdspSetPointColor(*phiPlot, 0x000000);
+		qdspSetBGColor(*phiPlot, 0xffffff);
 
-	*rhoPlot = qdspInit("Rho(x)");
-	qdspSetBounds(*rhoPlot, 0, XMAX, -100, 100);
-	qdspSetGridX(*rhoPlot, 0, 2, 0x888888);
-	qdspSetGridY(*rhoPlot, 0, 10, 0x888888);
-	qdspSetConnected(*rhoPlot, 1);
-	qdspSetPointColor(*rhoPlot, 0x000000);
-	qdspSetBGColor(*rhoPlot, 0xffffff);
+		*rhoPlot = qdspInit("Rho(x)");
+		qdspSetBounds(*rhoPlot, 0, XMAX, -100, 100);
+		qdspSetGridX(*rhoPlot, 0, 2, 0x888888);
+		qdspSetGridY(*rhoPlot, 0, 10, 0x888888);
+		qdspSetConnected(*rhoPlot, 1);
+		qdspSetPointColor(*rhoPlot, 0x000000);
+		qdspSetBGColor(*rhoPlot, 0xffffff);
+	}
 	
 	return 0;
 }

@@ -43,7 +43,7 @@ for modename,fname in plots:
 	plt.plot(time, np.log10(mode), label = modename + ',' + fname)
 
 if decay != None:
-	y0 = np.log10(mode[0])
+	y0 = np.log10(mode[0]) - 0.2
 	plt.plot([0, 5], [y0, y0 - 5/np.log(10) * decay])
 
 plt.xlabel('Time')
