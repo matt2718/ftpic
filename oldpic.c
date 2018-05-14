@@ -50,48 +50,15 @@ int main(int argc, char **argv) {
 	rhoFFT = fftw_plan_dft_r2c_1d(NGRID, rhoxBuf, rhokBuf, FFTW_MEASURE);
 	phiIFFT = fftw_plan_dft_c2r_1d(NGRID, phikBuf, phixBuf, FFTW_MEASURE);
 
-	int quiet;
-	// parse command line arguments, initialize simulation, and set up logging
-	int ret = commonInit(argc, argv, x, v, color, &quiet);
-	if (ret) return ret;
-
-	// whether to plot
-	int phasePlotOn = !quiet;
-	int phiPlotOn = !quiet;
-	int rhoPlotOn = !quiet;
-	
 	QDSPplot *phasePlot = NULL;
 	QDSPplot *phiPlot = NULL;
 	QDSPplot *rhoPlot = NULL;
 
-	if (phasePlotOn) {
-		phasePlot = qdspInit("Phase plot");
-		qdspSetBounds(phasePlot, 0, XMAX, -30, 30);
-		qdspSetGridX(phasePlot, 0, 2, 0x888888);
-		qdspSetGridY(phasePlot, 0, 10, 0x888888);
-		qdspSetPointColor(phasePlot, 0x000000);
-		qdspSetBGColor(phasePlot, 0xffffff);
-	}
-		
-	if (phiPlotOn) {
-		phiPlot = qdspInit("Phi(x)");
-		qdspSetBounds(phiPlot, 0, XMAX, -100, 100);
-		qdspSetGridX(phiPlot, 0, 2, 0x888888);
-		qdspSetGridY(phiPlot, 0, 20, 0x888888);
-		qdspSetConnected(phiPlot, 1);
-		qdspSetPointColor(phiPlot, 0x000000);
-		qdspSetBGColor(phiPlot, 0xffffff);
-	}
+	// parse command line arguments, initialize simulation, and set up logging
+	int ret = commonInit(argc, argv, x, v, color,
+	                     &phasePlot, &phiPlot, &rhoPlot);
 
-	if (rhoPlotOn) {
-		rhoPlot = qdspInit("Rho(x)");
-		qdspSetBounds(rhoPlot, 0, XMAX, -100, 100);
-		qdspSetGridX(rhoPlot, 0, 2, 0x888888);
-		qdspSetGridY(rhoPlot, 0, 10, 0x888888);
-		qdspSetConnected(rhoPlot, 1);
-		qdspSetPointColor(rhoPlot, 0x000000);
-		qdspSetBGColor(rhoPlot, 0xffffff);
-	}
+	if (ret) return ret;
 		
 	double *xar = malloc(NGRID * sizeof(double));
 	for (int j = 0; j < NGRID; j++) xar[j] = j * DX;
@@ -115,7 +82,7 @@ int main(int argc, char **argv) {
 
 		vHalfPush(x, v, eField, 1);
 
-		if (phasePlotOn)
+		if (phasePlot)
 			open = qdspUpdateIfReady(phasePlot, x, v, color, PART_NUM);
 
 		// logging
@@ -129,11 +96,15 @@ int main(int argc, char **argv) {
 			       momentum(v));
 		}
 
-		if (phiPlotOn)
-			phiPlotOn = qdspUpdateIfReady(phiPlot, xar, phi, NULL, NGRID);
+		if (phiPlot) {
+			int on = qdspUpdateIfReady(phiPlot, xar, phi, NULL, NGRID);
+			if (!on) phiPlot = NULL;
+		}
 
-		if (rhoPlotOn)
-			rhoPlotOn = qdspUpdateIfReady(rhoPlot, xar, rho, NULL, NGRID);
+		if (rhoPlot) {
+			int on = qdspUpdateIfReady(rhoPlot, xar, rho, NULL, NGRID);
+			if (!on) rhoPlot = NULL;
+		}
 		
 		vHalfPush(x, v, eField, 1);
 		xPush(x, v);

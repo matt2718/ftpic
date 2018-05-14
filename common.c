@@ -10,10 +10,10 @@
 
 // time info
 double DT = 0.001;
-double TMAX = 20;
+double TMAX = 10;
 
 const double XMAX = 16.0; // system length
-const int NGRID = 64; // grid size
+const int NGRID = 32; // grid size
 double DX;
 
 // particle number and properties
@@ -27,21 +27,22 @@ double OMEGA_P;
 const double BEAM_SPEED = 8.0;
 const double V_TH = 3.5; // sqrt(kt/m)
 
-// wave periods per system length for wave and landau damping
-const int WAVE_MODE = 2;
+// wave periods per system length for landau damping
+const int LANDAU_MODE = 2;
 const double PERTURB_AMPL = 0.25;
+
+const int WAVE_MODE = 9;
 
 // logging
 const int MODELOG_MAX = 32;
 FILE *modeLog = NULL;
 
-int commonInit(int argc, char **argv,
-               double *x, double *v, int *color,
-               int *quiet) {
+int commonInit(int argc, char **argv, double *x, double *v, int *color,
+               QDSPplot **phasePlot, QDSPplot **phiPlot, QDSPplot **rhoPlot) {
 	FILE *paramLog = NULL;
 	
 	// whether to plot
-	*quiet = 0;
+	int quiet = 0;
 
 	// which test case?
 	int initType = 0;
@@ -78,7 +79,7 @@ int commonInit(int argc, char **argv,
 
 		// quiet, do not render plots
 		if (!strcmp(argv[i], "-q")) {
-			*quiet = 1;
+			quiet = 1;
 		}
 	}
 
@@ -131,6 +132,30 @@ int commonInit(int argc, char **argv,
 		fprintf(modeLog, "\n");
 	}
 
+	// set up plots
+	*phasePlot = qdspInit("Phase plot");
+	qdspSetBounds(*phasePlot, 0, XMAX, -30, 30);
+	qdspSetGridX(*phasePlot, 0, 2, 0x888888);
+	qdspSetGridY(*phasePlot, 0, 10, 0x888888);
+	qdspSetPointColor(*phasePlot, 0x000000);
+	qdspSetBGColor(*phasePlot, 0xffffff);
+
+	*phiPlot = qdspInit("Phi(x)");
+	qdspSetBounds(*phiPlot, 0, XMAX, -100, 100);
+	qdspSetGridX(*phiPlot, 0, 2, 0x888888);
+	qdspSetGridY(*phiPlot, 0, 20, 0x888888);
+	qdspSetConnected(*phiPlot, 1);
+	qdspSetPointColor(*phiPlot, 0x000000);
+	qdspSetBGColor(*phiPlot, 0xffffff);
+
+	*rhoPlot = qdspInit("Rho(x)");
+	qdspSetBounds(*rhoPlot, 0, XMAX, -100, 100);
+	qdspSetGridX(*rhoPlot, 0, 2, 0x888888);
+	qdspSetGridY(*rhoPlot, 0, 10, 0x888888);
+	qdspSetConnected(*rhoPlot, 1);
+	qdspSetPointColor(*rhoPlot, 0x000000);
+	qdspSetBGColor(*rhoPlot, 0xffffff);
+	
 	return 0;
 }
 
@@ -158,7 +183,7 @@ void init2Stream(double *x, double *v, int *color) {
 // helper function for initLandau
 // use newton's method to find inverse of position CDF
 static double newton(double u) {
-	double k = WAVE_MODE * 2*M_PI/XMAX;
+	double k = LANDAU_MODE * 2*M_PI/XMAX;
 	
 	// find root of x/L + a/(k L) sin(k x) - u = 0
 	// derivative is 1/L + a/L cos(k x)
@@ -201,7 +226,7 @@ void initWave(double *x, double *v, int *color) {
 	OMEGA_P = sqrt((PART_NUM/XMAX) * (PART_CHARGE*PART_CHARGE)
 	               / (PART_MASS * EPS_0));
 	
-	double ampl = 0.3;
+	double ampl = 0.1;
 	
 	for (int i = 0; i < PART_NUM; i++) {
 		x[i] = i * XMAX / PART_NUM;

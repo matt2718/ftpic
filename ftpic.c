@@ -90,49 +90,16 @@ int main(int argc, char **argv) {
 	fftw_execute(sFFT);
 	fftw_destroy_plan(sFFT);
 
-	int quiet;
-	// parse command line arguments, initialize simulation, and set up logging
-	int ret = commonInit(argc, argv, x, v, color, &quiet);
-	if (ret) return ret;
-
-	// whether to plot
-	int phasePlotOn = !quiet;
-	int phiPlotOn = !quiet;
-	int rhoPlotOn = !quiet;
-	
 	QDSPplot *phasePlot = NULL;
 	QDSPplot *phiPlot = NULL;
 	QDSPplot *rhoPlot = NULL;
 
-	if (phasePlotOn) {
-		phasePlot = qdspInit("Phase plot");
-		qdspSetBounds(phasePlot, 0, XMAX, -30, 30);
-		qdspSetGridX(phasePlot, 0, 2, 0x888888);
-		qdspSetGridY(phasePlot, 0, 10, 0x888888);
-		qdspSetPointColor(phasePlot, 0x000000);
-		qdspSetBGColor(phasePlot, 0xffffff);
-	}
-
-	if (phiPlotOn) {
-		phiPlot = qdspInit("Phi(x)");
-		qdspSetBounds(phiPlot, 0, XMAX, -100, 100);
-		qdspSetGridX(phiPlot, 0, 2, 0x888888);
-		qdspSetGridY(phiPlot, 0, 20, 0x888888);
-		qdspSetConnected(phiPlot, 1);
-		qdspSetPointColor(phiPlot, 0x000000);
-		qdspSetBGColor(phiPlot, 0xffffff);
-	}
-
-	if (rhoPlotOn) {
-		rhoPlot = qdspInit("Rho(x)");
-		qdspSetBounds(rhoPlot, 0, XMAX, -50, 50);
-		qdspSetGridX(rhoPlot, 0, 2, 0x888888);
-		qdspSetGridY(rhoPlot, 0, 10, 0x888888);
-		qdspSetConnected(rhoPlot, 1);
-		qdspSetPointColor(rhoPlot, 0x000000);
-		qdspSetBGColor(rhoPlot, 0xffffff);
-	}
+	// parse command line arguments, initialize simulation, and set up logging
+	int ret = commonInit(argc, argv, x, v, color, 
+	                     &phasePlot, &phiPlot, &rhoPlot);
 	
+	if (ret) return ret;
+		
 	double *xar = malloc(NGRID * sizeof(double));
 	for (int j = 0; j < NGRID; j++) xar[j] = j * DX;
 
@@ -147,6 +114,7 @@ int main(int argc, char **argv) {
 
 	printf("time,potential,kinetic,total,momentum\n");
 
+	// check momentum conservation (not currently used)
 	double minp = 1/0.0;
 	double maxp = 0.0;
 	
@@ -157,9 +125,9 @@ int main(int argc, char **argv) {
 		fields(rhok, sk, phix, &potential);
 		vHalfPush(x, v, 1);
 
-		if (phasePlotOn)
+		if (phasePlot)
 			open = qdspUpdateIfReady(phasePlot, x, v, color, PART_NUM);
-
+		
 		// logging
 		if (n % 10 == 0) {
 			double kinetic = kineticEnergy(v);
@@ -174,12 +142,15 @@ int main(int argc, char **argv) {
 			if (curp > maxp) maxp = curp;
 		}
 
-		if (phiPlotOn)
-			phiPlotOn = qdspUpdateIfReady(phiPlot, xar, phix, NULL, NGRID);
+		if (phiPlot) {
+			int on = qdspUpdateIfReady(phiPlot, xar, phix, NULL, NGRID);
+			if (!on) phiPlot = NULL;
+		}
 		
-		if (rhoPlotOn) {
+		if (rhoPlot) {
 			fftw_execute(rhoIFFT);
-			rhoPlotOn = qdspUpdateIfReady(rhoPlot, xar, rhox, NULL, NGRID);
+			int on = qdspUpdateIfReady(rhoPlot, xar, rhox, NULL, NGRID);
+			if (!on) rhoPlot = NULL;
 		}
 
 		vHalfPush(x, v, 1);

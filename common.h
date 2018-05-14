@@ -1,6 +1,8 @@
 #ifndef _FTPIC_COMMON_H
 #define _FTPIC_COMMON_H
 
+#include <qdsp.h>
+
 extern double DT;
 extern double TMAX;
 
@@ -22,9 +24,8 @@ extern double OMEGA_P;
 extern const int MODELOG_MAX;
 extern FILE *modeLog;
 
-int commonInit(int argc, char **argv,
-               double *x, double *v, int *color,
-               int *quiet);
+int commonInit(int argc, char **argv, double *x, double *v, int *color,
+               QDSPplot **phasePlot, QDSPplot **phiPlot, QDSPplot **rhoPlot);
 
 void init2Stream(double *x, double *v, int *color);
 
