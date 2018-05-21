@@ -1,4 +1,4 @@
-CC=icc
+CC=gcc
 CFLAGS=-std=gnu99 -fopenmp
 LDFLAGS=
 LDLIBS=-lm -lfftw3 -lqdsp
