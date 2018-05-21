@@ -13,7 +13,7 @@ double DT = 0.001;
 double TMAX = 10;
 
 const double XMAX = 16.0; // system length
-const int NGRID = 32; // grid size
+const int NGRID = 128; // grid size
 double DX;
 
 // particle number and properties
@@ -71,7 +71,7 @@ int commonInit(int argc, char **argv, double *x, double *v, int *color,
 		}
 
 		// time step and limit
-		if (!strcmp(argv[i], "-tg")) {
+		if (!strcmp(argv[i], "-t")) {
 			if (++i == argc) return 1;
 			sscanf(argv[i], "%lf,%lf", &DT, &TMAX);
 			if (DT <= 0) return 1;
