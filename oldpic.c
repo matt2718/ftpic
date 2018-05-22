@@ -31,13 +31,21 @@ double momentum(double *v);
 void vDist();
 
 int main(int argc, char **argv) {
-	DX = XMAX / NGRID;
+	double *x;
+	double *v;
+	int *color;
 
-	// allocate memory
-	double *x = malloc(PART_NUM * sizeof(double));
-	double *v = malloc(PART_NUM * sizeof(double));
-	int *color = malloc(PART_NUM * sizeof(int));
+	QDSPplot *phasePlot = NULL;
+	QDSPplot *phiPlot = NULL;
+	QDSPplot *rhoPlot = NULL;
 
+	// parse command line arguments, initialize simulation, set up logging
+	// and plotting
+	int ret = commonInit(argc, argv,
+	                     &x, &v, &color,
+	                     &phasePlot, &phiPlot, &rhoPlot);
+	if (ret) return ret;
+	
 	double *rho = malloc(NGRID * sizeof(double));
 	double *eField = malloc(NGRID * sizeof(double));
 	double *phi = malloc(NGRID * sizeof(double));
@@ -54,16 +62,7 @@ int main(int argc, char **argv) {
 	rhoFFT = fftw_plan_dft_r2c_1d(NGRID, rhoxBuf, rhokBuf, FFTW_MEASURE);
 	phiIFFT = fftw_plan_dft_c2r_1d(NGRID, phikBuf, phixBuf, FFTW_MEASURE);
 
-	QDSPplot *phasePlot = NULL;
-	QDSPplot *phiPlot = NULL;
-	QDSPplot *rhoPlot = NULL;
-
-	// parse command line arguments, initialize simulation, and set up logging
-	int ret = commonInit(argc, argv, x, v, color,
-	                     &phasePlot, &phiPlot, &rhoPlot);
-
-	if (ret) return ret;
-
+	// axis for plots
 	double *xar = malloc(NGRID * sizeof(double));
 	for (int j = 0; j < NGRID; j++) xar[j] = j * DX;
 

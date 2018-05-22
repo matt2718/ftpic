@@ -13,11 +13,11 @@ double DT = 0.001;
 double TMAX = 10;
 
 const double XMAX = 16.0; // system length
-const int NGRID = 128; // grid size
+int NGRID = 32; // grid size
 double DX;
 
 // particle number and properties
-const int PART_NUM = 10000;
+int PART_NUM = 10000;
 const double PART_MASS = 0.005;
 const double PART_CHARGE = -0.02;
 const double EPS_0 = 1.0;
@@ -37,8 +37,10 @@ const int WAVE_MODE = 9;
 const int MODELOG_MAX = 32;
 FILE *modeLog = NULL;
 
-int commonInit(int argc, char **argv, double *x, double *v, int *color,
+int commonInit(int argc, char **argv,
+               double **x, double **v, int **color,
                QDSPplot **phasePlot, QDSPplot **phiPlot, QDSPplot **rhoPlot) {
+
 	FILE *paramLog = NULL;
 	
 	// whether to plot
@@ -70,6 +72,11 @@ int commonInit(int argc, char **argv, double *x, double *v, int *color,
 			modeLog = fopen(argv[i], "w");
 		}
 
+		// quiet, do not render plots
+		if (!strcmp(argv[i], "-q")) {
+			quiet = 1;
+		}
+		
 		// time step and limit
 		if (!strcmp(argv[i], "-t")) {
 			if (++i == argc) return 1;
@@ -77,23 +84,38 @@ int commonInit(int argc, char **argv, double *x, double *v, int *color,
 			if (DT <= 0) return 1;
 		}
 
-		// quiet, do not render plots
-		if (!strcmp(argv[i], "-q")) {
-			quiet = 1;
+		// number of particles
+		if (!strcmp(argv[i], "-np")) {
+			if (++i == argc) return 1;
+			sscanf(argv[i], "%d", &PART_NUM);
+			if (DT <= 0) return 1;
+		}
+
+		// number of grid cells/modes
+		if (!strcmp(argv[i], "-ng")) {
+			if (++i == argc) return 1;
+			sscanf(argv[i], "%d", &NGRID);
+			if (DT <= 0) return 1;
 		}
 	}
 
+	DX = XMAX / NGRID;
+	
+	*x = malloc(PART_NUM * sizeof(double));
+	*v = malloc(PART_NUM * sizeof(double));
+	*color = malloc(PART_NUM * sizeof(int));
+	
 	// initialize particles
 	if (initType == 0) {
 		if (paramLog != NULL) fclose(paramLog);
 		if (modeLog != NULL) fclose(modeLog);
 		return 1;
 	} else if (initType == 1) {
-		init2Stream(x, v, color);
+		init2Stream(*x, *v, *color);
 	} else if (initType == 2) {
-		initLandau(x, v, color);
+		initLandau(*x, *v, *color);
 	} else if (initType == 3) {
-		initWave(x, v, color);
+		initWave(*x, *v, *color);
 	}
 
 	// dump parameters

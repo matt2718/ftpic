@@ -7,11 +7,11 @@ extern double DT;
 extern double TMAX;
 
 extern const double XMAX; // system length
-extern const int NGRID; // grid size
+extern int NGRID; // grid size
 extern double DX;
 
 // particle number and properties
-extern const int PART_NUM;
+extern int PART_NUM;
 extern const double PART_MASS;
 extern const double PART_CHARGE;
 extern const double EPS_0;
@@ -24,7 +24,8 @@ extern double OMEGA_P;
 extern const int MODELOG_MAX;
 extern FILE *modeLog;
 
-int commonInit(int argc, char **argv, double *x, double *v, int *color,
+int commonInit(int argc, char **argv,
+               double **x, double **v, int **color,
                QDSPplot **phasePlot, QDSPplot **phiPlot, QDSPplot **rhoPlot);
 
 void init2Stream(double *x, double *v, int *color);

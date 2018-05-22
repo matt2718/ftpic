@@ -39,12 +39,20 @@ double kineticEnergy(double *v);
 double momentum(double *v);
 
 int main(int argc, char **argv) {
-	DX = XMAX / NGRID;
+	double *x;
+	double *v;
+	int *color;
 
-	// allocate memory
-	double *x = malloc(PART_NUM * sizeof(double));
-	double *v = malloc(PART_NUM * sizeof(double));
-	int *color = malloc(PART_NUM * sizeof(int));
+	QDSPplot *phasePlot = NULL;
+	QDSPplot *phiPlot = NULL;
+	QDSPplot *rhoPlot = NULL;
+
+	// parse command line arguments, initialize simulation, set up logging
+	// and plotting
+	int ret = commonInit(argc, argv,
+	                     &x, &v, &color,
+	                     &phasePlot, &phiPlot, &rhoPlot);
+	if (ret) return ret;
 
 	fftw_complex *rhok = fftw_malloc(NGRID * sizeof(fftw_complex));
 	double *rhox = fftw_malloc(NGRID * sizeof(double));
@@ -96,16 +104,7 @@ int main(int argc, char **argv) {
 	fftw_execute(sFFT);
 	fftw_destroy_plan(sFFT);
 
-	QDSPplot *phasePlot = NULL;
-	QDSPplot *phiPlot = NULL;
-	QDSPplot *rhoPlot = NULL;
-
-	// parse command line arguments, initialize simulation, and set up logging
-	int ret = commonInit(argc, argv, x, v, color,
-	                     &phasePlot, &phiPlot, &rhoPlot);
-
-	if (ret) return ret;
-
+	// axis for plots
 	double *xar = malloc(NGRID * sizeof(double));
 	for (int j = 0; j < NGRID; j++) xar[j] = j * DX;
 
