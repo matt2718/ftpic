@@ -42,7 +42,7 @@ int main(int argc, char **argv) {
 	double *x = malloc(PART_NUM * sizeof(double));
 	double *v = malloc(PART_NUM * sizeof(double));
 	int *color = malloc(PART_NUM * sizeof(int));
-	
+
 	fftw_complex *rhok = fftw_malloc(NGRID * sizeof(fftw_complex));
 	double *rhox = fftw_malloc(NGRID * sizeof(double));
 	double *phix = fftw_malloc(NGRID * sizeof(double));
@@ -62,7 +62,7 @@ int main(int argc, char **argv) {
 	// reverse USFFT
 	ekBuf = malloc(2 * NGRID * sizeof(fftw_complex));
 	epBuf = malloc(PART_NUM * sizeof(fftw_complex));
-	
+
 	// plan transforms
 	fftw_plan rhoIFFT = fftw_plan_dft_c2r_1d(NGRID, rhok, rhox, FFTW_MEASURE);
 	phiIFFT = fftw_plan_dft_c2r_1d(NGRID, phikBuf, phixBuf, FFTW_MEASURE);
@@ -95,19 +95,19 @@ int main(int argc, char **argv) {
 	QDSPplot *rhoPlot = NULL;
 
 	// parse command line arguments, initialize simulation, and set up logging
-	int ret = commonInit(argc, argv, x, v, color, 
+	int ret = commonInit(argc, argv, x, v, color,
 	                     &phasePlot, &phiPlot, &rhoPlot);
-	
+
 	if (ret) return ret;
-		
+
 	double *xar = malloc(NGRID * sizeof(double));
 	for (int j = 0; j < NGRID; j++) xar[j] = j * DX;
 
 	double potential;
-	
+
 	deposit(x, rhok, sk);
 	fields(rhok, sk, phix, &potential);
-	
+
 	vHalfPush(x, v, 0);
 
 	int open = 1;
@@ -117,7 +117,7 @@ int main(int argc, char **argv) {
 	// check momentum conservation (not currently used)
 	double minp = 1/0.0;
 	double maxp = 0.0;
-	
+
 	for (int n = 0; open && n * DT < TMAX; n++) {
 		if (modeLog) fprintf(modeLog, "%f", n * DT);
 
@@ -127,7 +127,7 @@ int main(int argc, char **argv) {
 
 		if (phasePlot)
 			open = qdspUpdateIfReady(phasePlot, x, v, color, PART_NUM);
-		
+
 		// logging
 		if (n % 10 == 0) {
 			double kinetic = kineticEnergy(v);
@@ -146,7 +146,7 @@ int main(int argc, char **argv) {
 			int on = qdspUpdateIfReady(phiPlot, xar, phix, NULL, NGRID);
 			if (!on) phiPlot = NULL;
 		}
-		
+
 		if (rhoPlot) {
 			fftw_execute(rhoIFFT);
 			int on = qdspUpdateIfReady(rhoPlot, xar, rhox, NULL, NGRID);
@@ -167,7 +167,7 @@ int main(int argc, char **argv) {
 	free(zcBuf);
 	free(xpBuf);
 	free(fpBuf);
-	
+
 	fftw_free(rhok);
 	fftw_free(rhox);
 	fftw_free(phix);
@@ -201,36 +201,64 @@ void deposit(double *x, fftw_complex *rhok, fftw_complex *sk) {
 	int isign = -1;
 	int order = 5;
 
-	#pragma omp parallel for
-	for (int m = 0; m < PART_NUM; m++) {
-		xpBuf[m] = x[m] / XMAX;
-		//if (xpBuf[m] >= 0.5) xpBuf[m] -= 1.0;
+#pragma omp parallel
+	{
+		// usfft requires normalization
+#pragma omp for
+		for (int m = 0; m < PART_NUM; m++)
+			xpBuf[m] = x[m] / XMAX;
+
+		// split up particle array
+		int nthreads = omp_get_num_threads();
+		int tid = omp_get_thread_num();
+
+		int np2 = PART_NUM / nthreads;
+		double *myxp = xpBuf + np2 * tid;
+
+		// extra particles if PART_NUM not a multiple of number of threads
+		if (nthreads - 1 == tid)
+			np2 = PART_NUM - np2 * tid;
+
+		fftw_complex *myzc = malloc(NGRID * sizeof(fftw_complex));
+		uf1t_(&nc, (double*)myzc, &np2, myxp, fpBuf, &isign, &order);
+
+#pragma omp for
+		for (int j = 0; j < NGRID; j++) {
+			zcBuf[j][0] = 0;
+			zcBuf[j][1] = 0;
+		}
+
+#pragma omp critical
+		for (int j = 0; j < NGRID; j++) {
+			zcBuf[j][0] += myzc[j][0];
+			zcBuf[j][1] += myzc[j][1];
+		}
+
+		free(myzc);
+
+#pragma omp barrier
+#pragma omp for
+		for (int j = 0; j < NGRID/2; j++) {
+			double real = PART_CHARGE * zcBuf[NGRID/2 + j][0] / NGRID;
+			double imag = PART_CHARGE * zcBuf[NGRID/2 + j][1] / NGRID;
+			//printf("%d\t%f,%f\n", j, real, imag);
+			rhok[j][0] = real * sk[j][0] - imag * sk[j][1];
+			rhok[j][1] = real * sk[j][1] + imag * sk[j][0];
+		}
 	}
-
-	uf1t_(&nc, (double*)zcBuf, &np, xpBuf, fpBuf, &isign, &order);
-
-	#pragma omp parallel for
-	for (int j = 0; j < NGRID/2; j++) {
-		double real = PART_CHARGE * zcBuf[NGRID/2 + j][0] / NGRID;
-		double imag = PART_CHARGE * zcBuf[NGRID/2 + j][1] / NGRID;
-		//printf("%d\t%f,%f\t%f,%f\n", j, real, imag);
-		rhok[j][0] = real * sk[j][0] - imag * sk[j][1];
-		rhok[j][1] = real * sk[j][1] + imag * sk[j][0];
-	}
-
 	// background
 	rhok[0][0] = 0;
 }
 
-// determine phi and e from rho(k) 
+// determine phi and e from rho(k)
 void fields(fftw_complex *rhok, fftw_complex *sk, double *phi, double *potential) {
-	
+
 	// rho(k) -> phi(k)
 	phikBuf[0][0] = 0;
 	phikBuf[0][1] = 0;
 	for (int j = 1; j < NGRID/2; j++) {
 		double k = 2 * M_PI * j / XMAX;
-		
+
 		double phikRe = rhok[j][0] / (k * k * EPS_0);
 		double phikIm = rhok[j][1] / (k * k * EPS_0);
 
@@ -292,38 +320,56 @@ void vHalfPush(double *x, double *v, int forward) {
 	// first element of ekBuf must be 0
 	ekBuf[0][0] = 0;
 	ekBuf[0][1] = 0;
-	for (int j = 0; j < NGRID/2; j++) {
-		// array must be Hermitian
-		ekBuf[NGRID/2 - j][0] = ekBuf[j + NGRID/2][0];
-		ekBuf[NGRID/2 - j][1] = -ekBuf[j + NGRID/2][1];
-	}
-	
-#pragma omp parallel for
-	for (int m = 0; m < PART_NUM; m++) {
-		xpBuf[m] = x[m] / XMAX;
-	}
-	
-	uf1a_(&nc, (double*)ekBuf, &np, xpBuf, (double*)epBuf, &isign, &order);
-	for (int m = 0; m < PART_NUM; m++) {
-		// interpolated e(x_m)
-		double ePart = epBuf[m][0];
 
-		// push
-		if (forward)
-			v[m] += DT/2 * (PART_CHARGE / PART_MASS) * ePart;
-		else
-			v[m] -= DT/2 * (PART_CHARGE / PART_MASS) * ePart;
+#pragma omp parallel
+	{
+#pragma omp for
+		for (int j = 0; j < NGRID/2; j++) {
+			// array must be Hermitian
+			ekBuf[NGRID/2 - j][0] = ekBuf[NGRID/2 + j][0];
+			ekBuf[NGRID/2 - j][1] = -ekBuf[NGRID/2 + j][1];
+		}
+
+#pragma omp for
+		for (int m = 0; m < PART_NUM; m++) {
+			xpBuf[m] = x[m] / XMAX;
+		}
+
+		int nthreads = omp_get_num_threads();
+		int tid = omp_get_thread_num();
+
+		int np2 = PART_NUM / nthreads;
+		fftw_complex *myep = epBuf + np2 * tid;
+		double *myxp = xpBuf + np2 * tid;
+
+		// extra particles if PART_NUM not a multiple of number of threads
+		if (nthreads - 1 == tid)
+			np2 = PART_NUM - np2 * tid;
+
+		uf1a_(&nc, (double*)ekBuf, &np2, myxp, (double*)myep, &isign, &order);
+
+#pragma omp for
+		for (int m = 0; m < PART_NUM; m++) {
+			// interpolated e(x_m)
+			double ePart = epBuf[m][0];
+
+			// push
+			if (forward)
+				v[m] += DT/2 * (PART_CHARGE / PART_MASS) * ePart;
+			else
+				v[m] -= DT/2 * (PART_CHARGE / PART_MASS) * ePart;
+		}
 	}
 }
 
 double kineticEnergy(double *v) {
 	double kinetic = 0;
-	
+
 #pragma omp parallel for reduction(+:kinetic)
 	for (int i = 0; i < PART_NUM; i++) {
 		kinetic += v[i] * v[i] * PART_MASS / 2;
 	}
-	
+
 	return kinetic;
 }
 
