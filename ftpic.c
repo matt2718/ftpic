@@ -19,6 +19,9 @@ fftw_complex *zcBuf;
 double *xpBuf;
 double *fpBuf;
 
+// contains buffer for each thread
+fftw_complex *zcTmp;
+
 fftw_complex *ekBuf;
 fftw_complex *epBuf;
 
@@ -62,6 +65,9 @@ int main(int argc, char **argv) {
 	// reverse USFFT
 	ekBuf = malloc(2 * NGRID * sizeof(fftw_complex));
 	epBuf = malloc(PART_NUM * sizeof(fftw_complex));
+
+	// thread-specific
+	zcTmp = malloc(omp_get_max_threads() * NGRID * sizeof(fftw_complex));
 
 	// plan transforms
 	fftw_plan rhoIFFT = fftw_plan_dft_c2r_1d(NGRID, rhok, rhox, FFTW_MEASURE);
@@ -160,6 +166,8 @@ int main(int argc, char **argv) {
 	// cleanup
 	if(modeLog) fclose(modeLog);
 
+	free(xar);
+	
 	free(x);
 	free(v);
 	free(color);
@@ -168,9 +176,15 @@ int main(int argc, char **argv) {
 	free(xpBuf);
 	free(fpBuf);
 
+	free(zcTmp);
+	free(ekBuf);
+	free(epBuf);
+
+	fftw_free(phix);
 	fftw_free(rhok);
 	fftw_free(rhox);
-	fftw_free(phix);
+	fftw_free(phixBuf);
+	fftw_free(phikBuf);
 
 	fftw_free(sx);
 	fftw_free(sk);
@@ -219,7 +233,7 @@ void deposit(double *x, fftw_complex *rhok, fftw_complex *sk) {
 		if (nthreads - 1 == tid)
 			np2 = PART_NUM - np2 * tid;
 
-		fftw_complex *myzc = malloc(NGRID * sizeof(fftw_complex));
+		fftw_complex *myzc = zcTmp + NGRID * tid;
 		uf1t_(&nc, (double*)myzc, &np2, myxp, fpBuf, &isign, &order);
 
 #pragma omp for
@@ -233,8 +247,6 @@ void deposit(double *x, fftw_complex *rhok, fftw_complex *sk) {
 			zcBuf[j][0] += myzc[j][0];
 			zcBuf[j][1] += myzc[j][1];
 		}
-
-		free(myzc);
 
 #pragma omp barrier
 #pragma omp for

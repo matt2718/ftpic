@@ -9,7 +9,8 @@
 
 #include "common.h"
 
-//qconst int MODELOG_MAX = 32;
+// deposition buffer
+double *tmpRho;
 
 // plans and buffers for fft
 fftw_plan rhoFFT;
@@ -31,7 +32,7 @@ void vDist();
 
 int main(int argc, char **argv) {
 	DX = XMAX / NGRID;
-	
+
 	// allocate memory
 	double *x = malloc(PART_NUM * sizeof(double));
 	double *v = malloc(PART_NUM * sizeof(double));
@@ -40,6 +41,9 @@ int main(int argc, char **argv) {
 	double *rho = malloc(NGRID * sizeof(double));
 	double *eField = malloc(NGRID * sizeof(double));
 	double *phi = malloc(NGRID * sizeof(double));
+
+	// we want to deposit in parallel
+	tmpRho = malloc(omp_get_max_threads() * NGRID * sizeof(double));
 
 	// transform buffers
 	rhoxBuf = fftw_malloc(NGRID * sizeof(double));
@@ -59,24 +63,24 @@ int main(int argc, char **argv) {
 	                     &phasePlot, &phiPlot, &rhoPlot);
 
 	if (ret) return ret;
-		
+
 	double *xar = malloc(NGRID * sizeof(double));
 	for (int j = 0; j < NGRID; j++) xar[j] = j * DX;
-	
+
 	double potential;
-	
+
 	deposit(x, rho);
 	fields(rho, eField, phi, NULL);
 
 	vHalfPush(x, v, eField, 0); // push backwards
 
 	int open = 1;
-	
+
 	printf("time,potential,kinetic,total,momentum\n");
 
 	for (int n = 0; open && n * DT < TMAX; n++) {
 		if (modeLog) fprintf(modeLog, "%f", n * DT);
-		
+
 		deposit(x, rho);
 		fields(rho, eField, phi, &potential);
 
@@ -105,13 +109,15 @@ int main(int argc, char **argv) {
 			int on = qdspUpdateIfReady(rhoPlot, xar, rho, NULL, NGRID);
 			if (!on) rhoPlot = NULL;
 		}
-		
+
 		vHalfPush(x, v, eField, 1);
 		xPush(x, v);
 	}
 
 	// cleanup
 	if(modeLog) fclose(modeLog);
+
+	free(xar);
 	
 	free(x);
 	free(v);
@@ -120,6 +126,8 @@ int main(int argc, char **argv) {
 	free(rho);
 	free(eField);
 	free(phi);
+
+	free(tmpRho);
 
 	fftw_free(rhoxBuf);
 	fftw_free(rhokBuf);
@@ -143,13 +151,13 @@ void deposit(double *x, double *rho) {
 
 #pragma omp parallel
 	{
-		double *myRho = calloc(NGRID, sizeof(double));
+		double *myRho = tmpRho + omp_get_thread_num() * NGRID;
+		for (int j = 0; j < NGRID; j++)
+			myRho[j] = 0;
 
-		int jmax = 0;
 #pragma omp for
 		for (int i = 0; i < PART_NUM; i++) {
 			int j = x[i] / DX;
-			if (j > jmax) jmax = j;
 			double xg = j * DX;
 			myRho[j] += PART_CHARGE * (xg + DX - x[i]) / (DX * DX);
 			myRho[(j+1) % NGRID] += PART_CHARGE * (x[i] - xg) / (DX * DX);
@@ -160,7 +168,6 @@ void deposit(double *x, double *rho) {
 			for (int j = 0; j < NGRID; j++)
 				rho[j] += myRho[j];
 		}
-		free(myRho);
 	}
 }
 
@@ -182,7 +189,7 @@ void fields(double *rho, double *e, double *phi, double *potential) {
 		phikBuf[j][0] = rhokBuf[j][0] / (k * k * EPS_0);
 		phikBuf[j][1] = rhokBuf[j][1] / (k * k * EPS_0);
 	}
-	
+
 	// potential energy calculation
 	if (potential != NULL) {
 		double pot = 0;
@@ -200,7 +207,7 @@ void fields(double *rho, double *e, double *phi, double *potential) {
 			fprintf(modeLog, "\n");
 		}
 	}
-	
+
 	// phi(k) -> phi(x)
 	fftw_execute(phiIFFT);
 	memcpy(phi, phixBuf, NGRID * sizeof(double));
@@ -249,12 +256,12 @@ void vHalfPush(double *x, double *v, double *e, int forward) {
 
 double kineticEnergy(double *v) {
 	double kinetic = 0;
-	
+
 #pragma omp parallel for reduction(+:kinetic)
 	for (int i = 0; i < PART_NUM; i++) {
 		kinetic += v[i] * v[i] * PART_MASS / 2;
 	}
-	
+
 	return kinetic;
 }
 
