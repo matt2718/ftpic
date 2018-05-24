@@ -23,6 +23,7 @@ extern double OMEGA_P;
 
 extern const int MODELOG_MAX;
 extern FILE *modeLog;
+extern int printTime;
 
 int commonInit(int argc, char **argv,
                double **x, double **v, int **color,

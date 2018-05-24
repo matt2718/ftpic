@@ -2,8 +2,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
-#include <fftw3.h>
+#include <time.h>
 #include <omp.h>
+#include <fftw3.h>
 
 #include <qdsp.h>
 
@@ -77,7 +78,12 @@ int main(int argc, char **argv) {
 
 	printf("time,potential,kinetic,total,momentum\n");
 
-	for (int n = 0; open && n * DT < TMAX; n++) {
+	// start time logging
+	struct timespec time1, time2;
+	clock_gettime(CLOCK_MONOTONIC, &time1);
+
+	int n;
+	for (n = 0; open && n * DT < TMAX; n++) {
 		if (modeLog) fprintf(modeLog, "%f", n * DT);
 
 		deposit(x, rho);
@@ -111,6 +117,13 @@ int main(int argc, char **argv) {
 
 		vHalfPush(x, v, eField, 1);
 		xPush(x, v);
+	}
+	clock_gettime(CLOCK_MONOTONIC, &time2);
+
+	if (printTime) {
+		double elapsed = (time2.tv_sec - time1.tv_sec) * 1000.0;
+		elapsed += (time2.tv_nsec - time1.tv_nsec) / 1000000.0;
+		fprintf(stderr, "%f ms per step\n", elapsed / n);
 	}
 
 	// cleanup

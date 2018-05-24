@@ -36,6 +36,7 @@ const int WAVE_MODE = 9;
 // logging
 const int MODELOG_MAX = 32;
 FILE *modeLog = NULL;
+int printTime = 0;
 
 int commonInit(int argc, char **argv,
                double **x, double **v, int **color,
@@ -51,51 +52,49 @@ int commonInit(int argc, char **argv,
 	
 	// parse arguments
 	for (int i = 1; i < argc; i++) {
-		// test case type
 		if (!strcmp(argv[i], "-c")) {
+			// test case type
 			if (++i == argc) return 1;
 
 			if (!strcmp(argv[i], "2stream")) initType = 1;
 			else if (!strcmp(argv[i], "landau")) initType = 2;
 			else if (!strcmp(argv[i], "wave")) initType = 3;
-		}
-		
-		// log file for parameters
-		if (!strcmp(argv[i], "-p")) {
+
+		} else if (!strcmp(argv[i], "-p")) {
+			// log file for parameters
 			if (++i == argc) return 1;
 			paramLog = fopen(argv[i], "w");
-		}
 
-		// log file for modes
-		if (!strcmp(argv[i], "-m")) {
+		} else if (!strcmp(argv[i], "-m")) {
+			// log file for modes
 			if (++i == argc) return 1;
 			modeLog = fopen(argv[i], "w");
-		}
 
-		// quiet, do not render plots
-		if (!strcmp(argv[i], "-q")) {
+		} else if (!strcmp(argv[i], "-pt")) {
+			// print the time per step
+			printTime = 1;
+
+		} else if (!strcmp(argv[i], "-q")) {
+			// quiet, do not render plots
 			quiet = 1;
-		}
-		
-		// time step and limit
-		if (!strcmp(argv[i], "-t")) {
+
+		} else if (!strcmp(argv[i], "-t")) {
+			// time step and limit
 			if (++i == argc) return 1;
 			sscanf(argv[i], "%lf,%lf", &DT, &TMAX);
 			if (DT <= 0) return 1;
-		}
 
-		// number of particles
-		if (!strcmp(argv[i], "-np")) {
+		} else if (!strcmp(argv[i], "-np")) {
+			// number of particles
 			if (++i == argc) return 1;
 			sscanf(argv[i], "%d", &PART_NUM);
-			if (DT <= 0) return 1;
-		}
+			if (PART_NUM <= 0) return 1;
 
-		// number of grid cells/modes
-		if (!strcmp(argv[i], "-ng")) {
+		} else if (!strcmp(argv[i], "-ng")) {
+			// number of grid cells/modes
 			if (++i == argc) return 1;
 			sscanf(argv[i], "%d", &NGRID);
-			if (DT <= 0) return 1;
+			if (NGRID <= 0) return 1;
 		}
 	}
 
