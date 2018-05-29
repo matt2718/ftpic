@@ -52,7 +52,23 @@ int commonInit(int argc, char **argv,
 	
 	// parse arguments
 	for (int i = 1; i < argc; i++) {
-		if (!strcmp(argv[i], "-c")) {
+		if (!strcmp(argv[i], "-h")) {
+			// help message
+			printf("Usage: { oldpic | ftpic} -c CASE [OPTIONS]\n"
+			       "  -c CASE   Specific test case to run. Choices are:\n"
+			       "              2stream : 2-stream instability\n"
+			       "              landau : Landau damping\n"
+			       "              wave : standing wave in cold plasma\n"
+			       "  -np NUM   Number of particles to simulate.\n"
+			       "  -ng SIZE  Number of grid cells (for PIC) or modes (for FT-PIC).\n"
+			       "  -t DT,MAX Time step size and length of simulation.\n"
+			       "  -q        Quiet, do not render plots.\n"
+			       "  -pt       Print the wall time per step.\n"
+			       "  -p FILE   Dump parameters to file FILE.\n"
+			       "  -m FILE   Dump E-field modes at each step to file FILE.\n"
+			       );
+			return 1;
+		} else if (!strcmp(argv[i], "-c")) {
 			// test case type
 			if (++i == argc) return 1;
 
@@ -60,6 +76,29 @@ int commonInit(int argc, char **argv,
 			else if (!strcmp(argv[i], "landau")) initType = 2;
 			else if (!strcmp(argv[i], "wave")) initType = 3;
 
+		} else if (!strcmp(argv[i], "-np")) {
+			// number of particles
+			if (++i == argc) return 1;
+			sscanf(argv[i], "%d", &PART_NUM);
+
+		} else if (!strcmp(argv[i], "-ng")) {
+			// number of grid cells/modes
+			if (++i == argc) return 1;
+			sscanf(argv[i], "%d", &NGRID);
+
+		} else if (!strcmp(argv[i], "-t")) {
+			// time step and limit
+			if (++i == argc) return 1;
+			sscanf(argv[i], "%lf,%lf", &DT, &TMAX);
+
+		} else if (!strcmp(argv[i], "-q")) {
+			// quiet, do not render plots
+			quiet = 1;
+			
+		} else if (!strcmp(argv[i], "-pt")) {
+			// print the time per step
+			printTime = 1;
+			
 		} else if (!strcmp(argv[i], "-p")) {
 			// log file for parameters
 			if (++i == argc) return 1;
@@ -69,47 +108,23 @@ int commonInit(int argc, char **argv,
 			// log file for modes
 			if (++i == argc) return 1;
 			modeLog = fopen(argv[i], "w");
-
-		} else if (!strcmp(argv[i], "-pt")) {
-			// print the time per step
-			printTime = 1;
-
-		} else if (!strcmp(argv[i], "-q")) {
-			// quiet, do not render plots
-			quiet = 1;
-
-		} else if (!strcmp(argv[i], "-t")) {
-			// time step and limit
-			if (++i == argc) return 1;
-			sscanf(argv[i], "%lf,%lf", &DT, &TMAX);
-			if (DT <= 0) return 1;
-
-		} else if (!strcmp(argv[i], "-np")) {
-			// number of particles
-			if (++i == argc) return 1;
-			sscanf(argv[i], "%d", &PART_NUM);
-			if (PART_NUM <= 0) return 1;
-
-		} else if (!strcmp(argv[i], "-ng")) {
-			// number of grid cells/modes
-			if (++i == argc) return 1;
-			sscanf(argv[i], "%d", &NGRID);
-			if (NGRID <= 0) return 1;
 		}
 	}
 
-	DX = XMAX / NGRID;
-	
-	*x = malloc(PART_NUM * sizeof(double));
-	*v = malloc(PART_NUM * sizeof(double));
-	*color = malloc(PART_NUM * sizeof(int));
-	
-	// initialize particles
-	if (initType == 0) {
+	if (initType == 0 || NGRID <= 0 || DT <= 0 || PART_NUM <= 0) {
 		if (paramLog != NULL) fclose(paramLog);
 		if (modeLog != NULL) fclose(modeLog);
 		return 1;
-	} else if (initType == 1) {
+	}
+
+	DX = XMAX / NGRID;
+
+	*x = malloc(PART_NUM * sizeof(double));
+	*v = malloc(PART_NUM * sizeof(double));
+	*color = malloc(PART_NUM * sizeof(int));
+
+	// initialize particles
+	if (initType == 1) {
 		init2Stream(*x, *v, *color);
 	} else if (initType == 2) {
 		initLandau(*x, *v, *color);
