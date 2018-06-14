@@ -342,8 +342,8 @@ void vHalfPush(double *x, double *v, int forward) {
 	int order = 5;
 
 	// first element of ekBuf must be 0
-	ekBuf[0][0] = 0;
-	ekBuf[0][1] = 0;
+	ekBuf[NGRID/2][0] = 0;
+	ekBuf[NGRID/2][1] = 0;
 
 #pragma omp parallel
 	{
