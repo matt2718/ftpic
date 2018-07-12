@@ -10,6 +10,8 @@ decay = None
 files = {}
 plots = []
 
+wp = -1
+
 i = 1
 while i < len(sys.argv):
 	arg = sys.argv[i]
@@ -18,6 +20,13 @@ while i < len(sys.argv):
 		i += 1
 		if i == len(sys.argv): quit(2)
 		decay = float(sys.argv[i])
+
+	elif arg == '-w':
+		# plasma frequency
+		i += 1
+		if i == len(sys.argv): quit(2)
+		wp = float(sys.argv[i])
+
 	else:
 		# arguments take the form mode,file
 		split = arg.find(',')
@@ -38,16 +47,22 @@ for modename,fname in plots:
 	rawdata = files[fname]
 
 	time = rawdata['time'].values
+	if wp > 0: time = time * wp
 	mode = rawdata['m' + modename].values
 
 	plt.plot(time, np.log10(mode), label = modename + ',' + fname)
-
+	#plt.plot(time, np.log10(mode), label = 'mode ' + modename)
+	
 if decay != None:
 	y0 = np.log10(mode[0]) - 0.2
 	plt.plot([0, 5], [y0, y0 - 5/np.log(10) * decay])
 
-plt.xlabel('Time')
-plt.ylabel('log(E_' + modename + ')')
+if wp > 0:
+	plt.xlabel(r'$\omega_p t$', fontsize=20)
+else:
+	plt.xlabel('Time', fontsize=16)
+	
+plt.ylabel('log(E)', fontsize=16)
 
 plt.legend(loc=4)
 

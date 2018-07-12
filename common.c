@@ -17,9 +17,9 @@ int NGRID = 32; // grid size
 double DX;
 
 // particle number and properties
-int PART_NUM = 10000;
-const double PART_MASS = 0.005;
-const double PART_CHARGE = -0.02;
+int PART_NUM = 20000;
+const double PART_MASS = 1.0;
+const double PART_CHARGE = -0.2;
 const double EPS_0 = 1.0;
 
 double OMEGA_P;
@@ -54,7 +54,7 @@ int commonInit(int argc, char **argv,
 	for (int i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "-h")) {
 			// help message
-			printf("Usage: { oldpic | ftpic} -c CASE [OPTIONS]\n"
+			printf("Usage: { oldpic | ftpic } -c CASE [OPTIONS]\n"
 			       "  -c CASE   Specific test case to run. Choices are:\n"
 			       "              2stream : 2-stream instability\n"
 			       "              landau : Landau damping\n"
@@ -178,17 +178,17 @@ int commonInit(int argc, char **argv,
 		qdspSetBGColor(*phasePlot, 0xffffff);
 
 		*phiPlot = qdspInit("Phi(x)");
-		qdspSetBounds(*phiPlot, 0, XMAX, -100, 100);
+		qdspSetBounds(*phiPlot, 0, XMAX, -800, 800);
 		qdspSetGridX(*phiPlot, 0, 2, 0x888888);
-		qdspSetGridY(*phiPlot, 0, 20, 0x888888);
+		qdspSetGridY(*phiPlot, 0, 200, 0x888888);
 		qdspSetConnected(*phiPlot, 1);
 		qdspSetPointColor(*phiPlot, 0x000000);
 		qdspSetBGColor(*phiPlot, 0xffffff);
 
 		*rhoPlot = qdspInit("Rho(x)");
-		qdspSetBounds(*rhoPlot, 0, XMAX, -100, 100);
+		qdspSetBounds(*rhoPlot, 0, XMAX, -1000, 1000);
 		qdspSetGridX(*rhoPlot, 0, 2, 0x888888);
-		qdspSetGridY(*rhoPlot, 0, 10, 0x888888);
+		qdspSetGridY(*rhoPlot, 0, 200, 0x888888);
 		qdspSetConnected(*rhoPlot, 1);
 		qdspSetPointColor(*rhoPlot, 0x000000);
 		qdspSetBGColor(*rhoPlot, 0xffffff);
