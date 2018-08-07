@@ -17,8 +17,8 @@ int NGRID = 32; // grid size
 double DX;
 
 // particle number and properties
-int PART_NUM = 20000;
-const double PART_MASS = 1.0;
+int PART_NUM = 10000;
+const double PART_MASS = 0.5;
 const double PART_CHARGE = -0.2;
 const double EPS_0 = 1.0;
 

@@ -14,7 +14,7 @@ while i < len(sys.argv):
 		if i < len(sys.argv):
 			wp = float(sys.argv[i])
 	else:
-		fname = argv[i]
+		fname = sys.argv[i]
 	i += 1
 
 if fname:
@@ -27,6 +27,11 @@ ke = rawdata['kinetic'].values
 pe = rawdata['potential'].values
 te = rawdata['total'].values
 p = rawdata['momentum'].values
+
+# normalize
+ke = ke / te[0]
+pe = pe / te[0]
+te = te / te[0]
 
 # energy plot
 plt.figure(1)

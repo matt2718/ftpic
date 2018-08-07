@@ -7,10 +7,11 @@ import matplotlib.pyplot as plt
 
 # parse arguments
 decay = None
+wp = None
+offset = 0
+
 files = {}
 plots = []
-
-wp = -1
 
 i = 1
 while i < len(sys.argv):
@@ -20,6 +21,12 @@ while i < len(sys.argv):
 		i += 1
 		if i == len(sys.argv): quit(2)
 		decay = float(sys.argv[i])
+
+	elif arg == '-o':
+		# decay line offset
+		i += 1
+		if i == len(sys.argv): quit(2)
+		offset = float(sys.argv[i])
 
 	elif arg == '-w':
 		# plasma frequency
@@ -47,17 +54,26 @@ for modename,fname in plots:
 	rawdata = files[fname]
 
 	time = rawdata['time'].values
-	if wp > 0: time = time * wp
+	if wp != None: time = time * wp
 	mode = rawdata['m' + modename].values
 
-	plt.plot(time, np.log10(mode), label = modename + ',' + fname)
-	#plt.plot(time, np.log10(mode), label = 'mode ' + modename)
-	
-if decay != None:
-	y0 = np.log10(mode[0]) - 0.2
-	plt.plot([0, 5], [y0, y0 - 5/np.log(10) * decay])
+	tmpname = fname
 
-if wp > 0:
+	## hack for specific files
+	#if 'asdff' in fname: tmpname = 'PIF'
+	#if 'asdfo' in fname: tmpname = 'PIC'
+
+	plt.plot(time, np.log10(mode), label = 'Mode ' + modename + ', ' + tmpname)
+	#plt.plot(time, np.log10(mode), label = 'mode ' + modename)
+
+if decay != None:
+	y0 = np.log10(mode[0]) + offset
+	if wp != None:
+		plt.plot([0, 3 * wp], [y0, y0 - 3 / np.log(10) * decay])
+	else:
+		plt.plot([0, 3], [y0, y0 - 3/np.log(10) * decay])
+
+if wp != None:
 	plt.xlabel(r'$\omega_p t$', fontsize=20)
 else:
 	plt.xlabel('Time', fontsize=16)
