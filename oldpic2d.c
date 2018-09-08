@@ -23,34 +23,6 @@ void xPush(double *x, double *y, double *vx, double *vy);
 double kineticEnergy(double *v);
 double momentum(double *v);
 
-void arraydump_double(double *array, const char* fname) {
-	FILE *outfile = fopen(fname, "w");
-
-	for (int r = 0; r < NGRIDY; r++) {
-		fprintf(outfile, "%f", array[NGRIDX * r]);
-		for (int c = 1; c < NGRIDX; c++) {
-			fprintf(outfile, ",%f", array[NGRIDX * r + c]);
-		}
-		fprintf(outfile, "\n");
-	}
-
-	fclose(outfile);
-}
-
-void arraydump_complex(fftw_complex *array, const char* fname, int im) {
-	FILE *outfile = fopen(fname, "w");
-
-	for (int r = 0; r < NGRIDY; r++) {
-		fprintf(outfile, "%f", array[NGRIDX * r][im]);
-		for (int c = 1; c < NGRIDX; c++) {
-			fprintf(outfile, ",%f", array[NGRIDX * r + c][im]);
-		}
-		fprintf(outfile, "\n");
-	}
-
-	fclose(outfile);
-}
-
 int main(int argc, char **argv) {
 	double *x;
 	double *y;
@@ -198,7 +170,6 @@ void fields(double *rho, double *phi, double *potential) {
 		// nomalization
 		rhoxBuf[j] = rho[j] / (NGRIDX * NGRIDY);
 	}
-	arraydump_double(rhoxBuf, "rho.csv");
 	fftw_execute(rhoFFT);
 
 	// rho(k) -> phi(k)
