@@ -48,8 +48,10 @@ else:
 	plt.xlabel('Time', fontsize=14)
 
 plt.ylabel('Energy', fontsize=14)
-plt.axes().set_ylim(0, 1.3*te[0])
+plt.gca().set_ylim(0, 1.3*te[0])
 plt.legend()
+
+plt.tight_layout()
 
 # momentum plot
 plt.figure(2)
@@ -62,6 +64,6 @@ else:
 	plt.xlabel('Time', fontsize=14)
 
 plt.ylabel('Momentum', fontsize=14)
-plt.axes().set_ylim(1.25*min(0,min(p)), 1.25*max(0,max(p)))
+plt.gca().set_ylim(1.25*min(0,min(p)), 1.25*max(0,max(p)))
 
 plt.show()
