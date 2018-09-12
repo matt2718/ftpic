@@ -17,8 +17,10 @@ fftw_plan rhoFFT, exIFFT, eyIFFT, phiIFFT;
 
 void deposit(double *x, double *y, double *rho);
 void fields(double *rho, double *phi, double *potential);
-void vHalfPush(double *x, double *y, double *vx, double *vy, int forward);
-void xPush(double *x, double *y, double *vx, double *vy);
+void interpField(double *x, double *y, double *eBuf, double *ePart);
+void vHalfPush(double *v, double *ePart, int forward);
+//void vHalfPush(double *x, double *y, double *vx, double *vy, int forward);
+void xPush(double *x, double *v);
 
 double kineticEnergy(double *v);
 double momentum(double *v);
@@ -54,6 +56,10 @@ int main(int argc, char **argv) {
 	exkBuf = fftw_malloc(NGRIDX * NGRIDY * sizeof(fftw_complex));
 	eyBuf = fftw_malloc(NGRIDX * NGRIDY * sizeof(double));
 	eykBuf = fftw_malloc(NGRIDX * NGRIDY * sizeof(fftw_complex));
+
+	// field at each particle
+	double *exPart = malloc(PART_NUM * sizeof(double));
+	double *eyPart = malloc(PART_NUM * sizeof(double));
 	
 	// plan transforms
 	rhoFFT = fftw_plan_dft_r2c_2d(NGRIDX, NGRIDY, rhoxBuf, rhokBuf, FFTW_MEASURE);
@@ -65,9 +71,13 @@ int main(int argc, char **argv) {
 
 	deposit(x, y, rho);
 	fields(rho, phi, NULL);
-
-	vHalfPush(x, y, vx, vy, 0); // push backwards
-
+	//vHalfPush(x, y, vx, vy, 0);
+	interpField(x, y, exBuf, exPart);
+	interpField(x, y, eyBuf, eyPart);
+	// push backwards
+	vHalfPush(vx, exPart, 0);
+	vHalfPush(vy, eyPart, 0);
+	
 	int open = 1;
 
 	printf("time,potential,kinetic,total,momentum\n");
@@ -83,7 +93,11 @@ int main(int argc, char **argv) {
 		deposit(x, y, rho);
 		fields(rho, phi, &potential);
 
-		vHalfPush(x, y, vx, vy, 1);
+		//vHalfPush(x, y, vx, vy, 1);
+		interpField(x, y, exBuf, exPart);
+		interpField(x, y, eyBuf, eyPart);
+		vHalfPush(vx, exPart, 1);
+		vHalfPush(vy, eyPart, 1);
 
 		if (xyPlot)
 			open = qdspUpdateIfReady(xyPlot, x, y, color, PART_NUM);
@@ -99,8 +113,10 @@ int main(int argc, char **argv) {
 			       momentum(vx));
 		}
 
-		vHalfPush(x, y, vx, vy, 1);
-		xPush(x, y, vx, vy);
+		vHalfPush(vx, exPart, 1);
+		vHalfPush(vy, eyPart, 1);
+		xPush(x, vx);
+		xPush(y, vy);
 	}
 	clock_gettime(CLOCK_MONOTONIC, &time2);
 
@@ -110,9 +126,12 @@ int main(int argc, char **argv) {
 		fprintf(stderr, "%f ms per step\n", elapsed / n);
 	}
 
-	// cleanup
+	////////////////////////////////
+	// CLEANUP
+
 	if(modeLog) fclose(modeLog);
 
+	// allocated by commonInit
 	free(x);
 	free(y);
 	free(vx);
@@ -121,6 +140,9 @@ int main(int argc, char **argv) {
 
 	free(rho);
 	free(phi);
+
+	free(exPart);
+	free(eyPart);
 
 	fftw_free(rhoxBuf);
 	fftw_free(rhokBuf);
@@ -198,11 +220,8 @@ void fields(double *rho, double *phi, double *potential) {
 		eykBuf[j][0] =  ky * phikBuf[j][1];
 		eykBuf[j][1] = -ky * phikBuf[j][0];
 	}
-	//arraydump_complex(phikBuf, "phik_re.csv", 0);
-	//arraydump_complex(phikBuf, "phik_im.csv", 1);
 	
 	// potential energy calculation
-
 	if (potential != NULL) {
 		double pot = 0;
 		for (int j = 0; j < NGRIDX * NGRIDY / 2; j++) {
@@ -214,18 +233,6 @@ void fields(double *rho, double *phi, double *potential) {
 	fftw_execute(exIFFT);
 	fftw_execute(eyIFFT);
 
-	//getchar();
-	/*
-	arraydump_double(exBuf, "ex.csv");
-	arraydump_double(eyBuf, "ey.csv");
-
-	arraydump_complex(rhokBuf, "rhok_re.csv", 0);
-	arraydump_complex(rhokBuf, "rhok_im.csv", 1);
-
-	fftw_execute(phiIFFT);
-	arraydump_double(phixBuf, "phi.csv");
-	exit(1);
-	*/
 	/*
 	// phi(k) -> phi(x)
 	fftw_execute(phiIFFT);
@@ -239,6 +246,32 @@ void fields(double *rho, double *phi, double *potential) {
 	*/
 }
 
+void interpField(double *x, double *y, double *eBuf, double *ePart) {
+	for (int i = 0; i < PART_NUM; i++) {
+		int jx1 = (int)(x[i] / DX);
+		int jy1 = (int)(y[i] / DY);
+		int jx2 = (jx1 + 1) % NGRIDX;
+		int jy2 = (jy1 + 1) % NGRIDY;
+		
+		double xfrac = x[i] / DX - jx1;
+		double yfrac = y[i] / DY - jy1;
+
+		ePart[i] = 0; // field at particle
+		
+		ePart[i] += (1 - xfrac) * (1 - yfrac) * eBuf[jx1 + NGRIDX * jy1];
+		ePart[i] += xfrac       * (1 - yfrac) * eBuf[jx2 + NGRIDX * jy1];
+		ePart[i] += (1 - xfrac) * yfrac       * eBuf[jx1 + NGRIDX * jy2];
+		ePart[i] += xfrac       * yfrac       * eBuf[jx2 + NGRIDX * jy2];
+	}
+}
+
+void vHalfPush(double *v, double *ePart, int forward) {
+	double factor = DT/2 * (PART_CHARGE / PART_MASS);
+	if (!forward) factor = -factor;
+	for (int m = 0; m < PART_NUM; m++)
+		v[m] += factor * ePart[m];
+}
+/*
 // pushes particles, electric field calculated via linear interpoation
 void vHalfPush(double *x, double *y, double *vx, double *vy, int forward) {
 	//#pragma omp parallel for
@@ -273,22 +306,18 @@ void vHalfPush(double *x, double *y, double *vx, double *vy, int forward) {
 		}
 	}
 }
-
+*/
 // moves particles given velocities
-void xPush(double *x, double *y, double *vx, double *vy) {
+void xPush(double *x, double *v) {
 	//#pragma omp parallel for
 	for (int i = 0; i < PART_NUM; i++) {
-		x[i] += DT * vx[i];
-		y[i] += DT * vy[i];
+		x[i] += DT * v[i];
 
 		// periodicity
 		// (not strictly correct, but if a particle is moving several grid
 		// lengths in 1 timestep, something has gone horribly wrong)
 		if (x[i] < 0) x[i] += XMAX;
 		if (x[i] >= XMAX) x[i] -= XMAX;
-
-		if (y[i] < 0) y[i] += YMAX;
-		if (y[i] >= XMAX) y[i] -= YMAX;
 	}
 }
 

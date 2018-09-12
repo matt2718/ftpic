@@ -97,8 +97,8 @@ int main(int argc, char **argv) {
 		fields(&potential);
 		interpField(x, y, exkBuf, exPart);
 		interpField(x, y, eykBuf, eyPart);
-		vHalfPush(vx, exPart, 0);
-		vHalfPush(vy, eyPart, 0);
+		vHalfPush(vx, exPart, 1);
+		vHalfPush(vy, eyPart, 1);
 
 		if (xyPlot)
 			open = qdspUpdateIfReady(xyPlot, x, y, color, PART_NUM);
@@ -114,8 +114,8 @@ int main(int argc, char **argv) {
 			       momentum(vx));
 		}
 
-		vHalfPush(vx, exPart, 0);
-		vHalfPush(vy, eyPart, 0);
+		vHalfPush(vx, exPart, 1);
+		vHalfPush(vy, eyPart, 1);
 		xPush(x, vx);
 		xPush(y, vy);
 	}
@@ -283,7 +283,7 @@ void interpField(double *x, double *y, fftw_complex *ek, fftw_complex *ePart) {
 // pushes particles forward by half a timestep
 // ePart is complex because we're using USFFT output for the field
 void vHalfPush(double *v, fftw_complex *ePart, int forward) {
-	double factor = -DT/2 * (PART_CHARGE / PART_MASS);
+	double factor = DT/2 * (PART_CHARGE / PART_MASS);
 	if (!forward) factor = -factor;
 	for (int m = 0; m < PART_NUM; m++)
 		v[m] += factor * ePart[m][0];
