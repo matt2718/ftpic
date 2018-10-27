@@ -50,22 +50,22 @@ int main(int argc, char **argv) {
 	if (ret) return ret;
 
 	// transform buffers
-	rhoxBuf = malloc(NGRIDX * NGRIDY * sizeof(double));
-	rhokBuf = malloc(NGRIDX * NGRIDY * sizeof(fftw_complex));
+	rhoxBuf = malloc(2 * NGRIDX * NGRIDY * sizeof(double));
+	rhokBuf = malloc(2 * NGRIDX * NGRIDY * sizeof(fftw_complex));
 
-	phixBuf = malloc(NGRIDX * NGRIDY * sizeof(double));
-	phikBuf = malloc(NGRIDX * NGRIDY * sizeof(fftw_complex));
+	phixBuf = malloc(2 * NGRIDX * NGRIDY * sizeof(double));
+	phikBuf = malloc(2 * NGRIDX * NGRIDY * sizeof(fftw_complex));
 
-	exBuf  = malloc(NGRIDX * NGRIDY * sizeof(double));
-	eyBuf  = malloc(NGRIDX * NGRIDY * sizeof(double));
-	exkBuf = malloc(NGRIDX * NGRIDY * sizeof(fftw_complex));
-	eykBuf = malloc(NGRIDX * NGRIDY * sizeof(fftw_complex));
+	exBuf  = malloc(2 * NGRIDX * NGRIDY * sizeof(double));
+	eyBuf  = malloc(2 * NGRIDX * NGRIDY * sizeof(double));
+	exkBuf = malloc(2 * NGRIDX * NGRIDY * sizeof(fftw_complex));
+	eykBuf = malloc(2 * NGRIDX * NGRIDY * sizeof(fftw_complex));
 
 	// other stuff USFFT needs
-	zcBuf = malloc(PART_NUM * sizeof(fftw_complex));
-	xpBuf = malloc(PART_NUM * sizeof(double));
-	ypBuf = malloc(PART_NUM * sizeof(double));
-	fpBuf = malloc(PART_NUM * sizeof(fftw_complex));
+	zcBuf = malloc(2 * PART_NUM * sizeof(fftw_complex));
+	xpBuf = malloc(2 * PART_NUM * sizeof(double));
+	ypBuf = malloc(2 * PART_NUM * sizeof(double));
+	fpBuf = malloc(2 * PART_NUM * sizeof(fftw_complex));
 
 	// inverse USFFT output
 	fftw_complex *exPart = malloc(PART_NUM * sizeof(fftw_complex));
@@ -179,8 +179,8 @@ void deposit(double *x, double *y) {
 		fpBuf[m][0] = 1;
 		fpBuf[m][1] = 0;
 	}
-
-	uf2t_(&ncx, &ncy, (double*)zcBuf,
+	
+ 	uf2t_(&ncx, &ncy, (double*)zcBuf,
 	      &np, xpBuf, ypBuf, (double*)fpBuf,
 	      &isign, &order);
 
@@ -189,8 +189,8 @@ void deposit(double *x, double *y) {
 			int j = jx + NGRIDX*jy;
 			int j2 = NGRIDY*jx + jy;
 
-			double real = PART_CHARGE * zcBuf[j2][0] / (NGRIDX*NGRIDY);
-			double imag = PART_CHARGE * zcBuf[j2][1] / (NGRIDX*NGRIDY);
+			double real = PART_CHARGE * zcBuf[j2][0] / (XMAX * YMAX);
+			double imag = PART_CHARGE * zcBuf[j2][1] / (XMAX * YMAX);
 			rhokBuf[j][0] = real;
 			rhokBuf[j][1] = imag;
 		}
@@ -317,7 +317,7 @@ double kineticEnergy(double *v) {
 double momentum(double *v) {
 	double p = 0;
 
-#pragma omp parallel for reduction(+:p)
+	//#pragma omp parallel for reduction(+:p)
 	for (int i = 0; i < PART_NUM; i++) {
 		p += PART_MASS * v[i];
 	}

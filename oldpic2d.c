@@ -19,7 +19,6 @@ void deposit(double *x, double *y, double *rho);
 void fields(double *rho, double *phi, double *potential);
 void interpField(double *x, double *y, double *eBuf, double *ePart);
 void vHalfPush(double *v, double *ePart, int forward);
-//void vHalfPush(double *x, double *y, double *vx, double *vy, int forward);
 void xPush(double *x, double *v);
 
 double kineticEnergy(double *v);
@@ -190,7 +189,7 @@ void fields(double *rho, double *phi, double *potential) {
 	// rho(x) -> rho(k)
 	for (int j = 0; j < NGRIDX * NGRIDY; j++) {
 		// nomalization
-		rhoxBuf[j] = rho[j] / (NGRIDX * NGRIDY);
+		rhoxBuf[j] = rho[j] / (XMAX * YMAX);
 	}
 	fftw_execute(rhoFFT);
 

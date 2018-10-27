@@ -25,7 +25,8 @@ FILE *paramLog = NULL;
 void deposit(double *x, double *rho);
 void fields(double *rho, double *e, double *phi, double *potential);
 void xPush(double *x, double *v);
-void vHalfPush(double *x, double *v, double *e, int forward);
+void interpField(double *x, double *e, double *ePart);
+void vHalfPush(double *v, double *ePart, int forward);
 
 double kineticEnergy(double *v);
 double momentum(double *v);
@@ -51,8 +52,11 @@ int main(int argc, char **argv) {
 	double *eField = malloc(NGRID * sizeof(double));
 	double *phi = malloc(NGRID * sizeof(double));
 
+	// e field at particle positions
+	double *ePart = malloc(PART_NUM * sizeof(double));
+		
 	// we want to deposit in parallel
-	tmpRho = malloc(omp_get_max_threads() * NGRID * sizeof(double));
+	tmpRho = malloc(2 * omp_get_max_threads() * NGRID * sizeof(double));
 
 	// transform buffers
 	rhoxBuf = fftw_malloc(NGRID * sizeof(double));
@@ -72,7 +76,8 @@ int main(int argc, char **argv) {
 	deposit(x, rho);
 	fields(rho, eField, phi, NULL);
 
-	vHalfPush(x, v, eField, 0); // push backwards
+	interpField(x, eField, ePart);
+	vHalfPush(v, eField, 0); // push backwards
 
 	int open = 1;
 
@@ -89,7 +94,8 @@ int main(int argc, char **argv) {
 		deposit(x, rho);
 		fields(rho, eField, phi, &potential);
 
-		vHalfPush(x, v, eField, 1);
+		interpField(x, eField, ePart);
+		vHalfPush(v, eField, 1);
 
 		if (phasePlot)
 			open = qdspUpdateIfReady(phasePlot, x, v, color, PART_NUM);
@@ -115,7 +121,8 @@ int main(int argc, char **argv) {
 			if (!on) rhoPlot = NULL;
 		}
 
-		vHalfPush(x, v, eField, 1);
+		//interpField(x, eField, ePart);
+		vHalfPush(v, eField, 1);
 		xPush(x, v);
 	}
 	clock_gettime(CLOCK_MONOTONIC, &time2);
@@ -138,7 +145,8 @@ int main(int argc, char **argv) {
 	free(rho);
 	free(eField);
 	free(phi);
-
+	
+	free(ePart);
 	free(tmpRho);
 
 	fftw_free(rhoxBuf);
@@ -231,6 +239,32 @@ void fields(double *rho, double *e, double *phi, double *potential) {
 		e[j] = (phi[j-1] - phi[j+1]) / (2 * DX);
 }
 
+// calculated E field at each particle
+void interpField(double *x, double *e, double *ePart) {
+#pragma omp parallel for
+	for (int i = 0; i < PART_NUM; i++) {
+		// calculate index and placement between grid points
+		int jint = (int)(x[i] * NGRID / XMAX);
+		double jfrac = (x[i] * NGRID / XMAX) - jint;
+
+		// interpolate e(x_i)
+		double e1 = e[jint];
+		double e2 = e[(jint + 1) % NGRID];
+	      ePart[i] = e1 + (e2 - e1) * jfrac;
+	}
+}
+	
+// pushes particles
+void vHalfPush(double *v, double *ePart, int forward) {
+	double factor = DT/2 * (PART_CHARGE / PART_MASS);
+	if (!forward) factor = -factor;
+
+#pragma omp parallel for
+	for (int m = 0; m < PART_NUM; m++) {
+		v[m] += factor * ePart[m];
+	}
+}
+
 // moves particles given velocities
 void xPush(double *x, double *v) {
 #pragma omp parallel for
@@ -242,27 +276,6 @@ void xPush(double *x, double *v) {
 		// lengths in 1 timestep, something has gone horribly wrong)
 		if (x[i] < 0) x[i] += XMAX;
 		if (x[i] >= XMAX) x[i] -= XMAX;
-	}
-}
-
-// pushes particles, electric field calculated via linear interpoation
-void vHalfPush(double *x, double *v, double *e, int forward) {
-#pragma omp parallel for
-	for (int i = 0; i < PART_NUM; i++) {
-		// calculate index and placement between grid points
-		int jint = (int)(x[i] * NGRID / XMAX);
-		double jfrac = (x[i] * NGRID / XMAX) - jint;
-
-		// interpolate e(x_i)
-		double e1 = e[jint];
-		double e2 = e[(jint + 1) % NGRID];
-		double ePart = e1 + (e2 - e1) * jfrac;
-
-		// push
-		if (forward)
-			v[i] += DT/2 * (PART_CHARGE / PART_MASS) * ePart;
-		else
-			v[i] -= DT/2 * (PART_CHARGE / PART_MASS) * ePart;
 	}
 }
 

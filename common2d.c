@@ -12,8 +12,8 @@ double DT = 0.001;
 double TMAX = 10;
 
 // system size
-const double XMAX = 16.0;
-const double YMAX = 16.0;
+const double XMAX = 32.0;
+const double YMAX = 32.0;
 
 // grid size and spacing
 int NGRIDX = 16;
@@ -214,6 +214,7 @@ void init2Stream(double *x, double *y, double *vx, double *vy, int *color) {
 			vx[i] = -BEAM_SPEED;
 			color[i] = 0x0000ff;
 		}
+		vy[i] = 0;
 		/*
 		vy[i] = 0;
 		vx[i] = 0;
