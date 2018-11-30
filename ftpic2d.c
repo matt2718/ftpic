@@ -5,9 +5,7 @@
 #include <time.h>
 #include <omp.h>
 #include <fftw3.h>
-
 #include <qdsp.h>
-
 #include "common2d.h"
 
 double *rhoxBuf, *phixBuf, *exBuf, *eyBuf;
@@ -15,6 +13,7 @@ fftw_complex *rhokBuf, *phikBuf, *exkBuf, *eykBuf;
 
 fftw_plan rhoFFT, exIFFT, eyIFFT, phiIFFT;
 
+#define SPLINE_ORD 5
 extern void uf2t_(int*, int*, double*, int*, double*, double*, double*, int*, int*);
 extern void uf2a_(int*, int*, double*, int*, double*, double*, double*, int*, int*);
 
@@ -124,7 +123,7 @@ int main(int argc, char **argv) {
 	if (printTime) {
 		double elapsed = (time2.tv_sec - time1.tv_sec) * 1000.0;
 		elapsed += (time2.tv_nsec - time1.tv_nsec) / 1000000.0;
-		fprintf(stderr, "%f ms per step\n", elapsed / n);
+		printf("%f ms per step\n", elapsed / n);
 	}
 
 	////////////////////////////////
@@ -133,6 +132,7 @@ int main(int argc, char **argv) {
 	if(modeLog) fclose(modeLog);
 
 	// allocated by commonInit
+	/*
 	free(x);
 	free(y);
 	free(vx);
@@ -144,6 +144,7 @@ int main(int argc, char **argv) {
 	free(phixBuf);
 	free(phikBuf);
 
+	/*
 	free(zcBuf);
 	free(xpBuf);
 	free(ypBuf);
@@ -156,12 +157,12 @@ int main(int argc, char **argv) {
 
 	free(exPart);
 	free(eyPart);
-	
+
 	fftw_destroy_plan(rhoFFT);
 	fftw_destroy_plan(exIFFT);
 	fftw_destroy_plan(eyIFFT);
 	fftw_destroy_plan(phiIFFT);
-
+	*/	
 	if (xyPlot) qdspDelete(xyPlot);
 
 	return 0;
@@ -171,7 +172,7 @@ void deposit(double *x, double *y) {
 	int ncx = NGRIDX, ncy = NGRIDY;
 	int np = PART_NUM;
 	int isign = -1;
-	int order = 5;
+	int order = SPLINE_ORD;
 
 	for (int m = 0; m < PART_NUM; m++) {
 		xpBuf[m] = x[m] / XMAX;
@@ -256,7 +257,7 @@ void interpField(double *x, double *y, fftw_complex *ek, fftw_complex *ePart) {
 	int ncx = NGRIDX, ncy = NGRIDY;
 	int np = PART_NUM;
 	int isign = 1;
-	int order = 5;
+	int order = SPLINE_ORD;
 
 	for (int m = 0; m < PART_NUM; m++) {
 		xpBuf[m] = x[m] / XMAX;

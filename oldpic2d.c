@@ -122,7 +122,7 @@ int main(int argc, char **argv) {
 	if (printTime) {
 		double elapsed = (time2.tv_sec - time1.tv_sec) * 1000.0;
 		elapsed += (time2.tv_nsec - time1.tv_nsec) / 1000000.0;
-		fprintf(stderr, "%f ms per step\n", elapsed / n);
+		printf("%f ms per step\n", elapsed / n);
 	}
 
 	////////////////////////////////
