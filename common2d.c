@@ -261,7 +261,7 @@ void initLandau(double *x, double *y, double *vx, double *vy, int *color) {
 
 		// uniform in y
 		y[i] = YMAX * (rand() + 1) / ((double)RAND_MAX + 1);
-		
+
 		// init maxwellian distro
 		// box-mueller
 		double r1 = (rand() + 1) / ((double)RAND_MAX + 1); // log(0) breaks stuff

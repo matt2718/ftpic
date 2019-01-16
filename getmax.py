@@ -11,4 +11,4 @@ te = rawdata['total'].values
 
 te = te / te[0]
 
-print(max(np.abs(np.diff(te))))
+print(max(np.abs(te - te[0])))

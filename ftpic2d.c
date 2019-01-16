@@ -227,11 +227,35 @@ void fields(double *potential) {
 		eykBuf[j][1] = -kx * phikBuf[j][0];
 	}
 
+	/* in case we need to dump to a file
+	FILE *tmp1 = fopen("tmp1.csv", "w");
+	FILE *tmp2 = fopen("tmp2.csv", "w");
+	for (int r = 0; r < NGRIDY; r++) {
+		for (int c = 0; c < NGRIDX - 1; c++) {
+			int j = r * NGRIDX + c;
+			fprintf(tmp1, "%f,", rhokBuf[j][0]);
+			fprintf(tmp2, "%f,", rhokBuf[j][1]);
+		}
+		int j = r * NGRIDX + NGRIDX - 1;
+		fprintf(tmp1, "%f\n", rhokBuf[j][0]);
+		fprintf(tmp2, "%f\n", rhokBuf[j][1]);
+	}
+	fclose(tmp1);
+	fclose(tmp2);
+	exit(2);
+	//*/
+
 	// potential energy calculation
 	if (potential != NULL) {
 		double pot = 0;
-		for (int j = 0; j < NGRIDX * NGRIDY / 2; j++) {
-			pot += phikBuf[j][0] * rhokBuf[j][0] + phikBuf[j][1] * rhokBuf[j][1];
+		for (int j = 0; j < NGRIDX * NGRIDY; j++) {
+			double curpot = phikBuf[j][0] * rhokBuf[j][0] + phikBuf[j][1] * rhokBuf[j][1];
+			
+			int nx = (j % NGRIDX) - NGRIDX/2;
+			int ny = (int)(j / NGRIDX) - NGRIDY/2;
+			if (nx != NGRIDX/2 && ny != NGRIDY/2 && (nx != 0 || ny != 0)) curpot /= 2;
+			
+			pot += curpot;
 		}
 		*potential = pot * XMAX * YMAX;
 	}

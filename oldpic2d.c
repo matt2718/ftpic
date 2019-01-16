@@ -191,6 +191,7 @@ void fields(double *rho, double *phi, double *potential) {
 		// nomalization
 		rhoxBuf[j] = rho[j] / (XMAX * YMAX);
 	}
+
 	fftw_execute(rhoFFT);
 
 	// rho(k) -> phi(k)
@@ -204,6 +205,14 @@ void fields(double *rho, double *phi, double *potential) {
 		double kx = 2 * M_PI * (j % (NGRIDX/2+1)) / XMAX;
 		double ky = 2 * M_PI * (int)(j / (NGRIDX/2+1)) / YMAX;
 
+		/* TREAT PHYSICS IN 1D
+		if (ky != 0) {
+			rhokBuf[j][0] = 0;
+			rhokBuf[j][1] = 0;
+		} else {
+			rhokBuf[j];
+		}
+		//*/
 		if (ky > M_PI * NGRIDY / YMAX)
 			ky -= 2 * M_PI * NGRIDY / YMAX;
 
@@ -223,8 +232,15 @@ void fields(double *rho, double *phi, double *potential) {
 	// potential energy calculation
 	if (potential != NULL) {
 		double pot = 0;
-		for (int j = 0; j < NGRIDX * NGRIDY / 2; j++) {
-			pot += phikBuf[j][0] * rhokBuf[j][0] + phikBuf[j][1] * rhokBuf[j][1];
+		for (int j = 0; j < (NGRIDX/2+1) * NGRIDY; j++) {
+			double curpot = phikBuf[j][0] * rhokBuf[j][0] + phikBuf[j][1] * rhokBuf[j][1];
+
+			// output is just over half a hermitian array, so certain values will show up twice
+			int nx = j % (NGRIDX/2+1);
+			int ny = (int)(j / (NGRIDX/2+1));
+			if ((nx == 0 || nx == NGRIDX/2) && !(ny == 0 || ny == NGRIDY/2)) curpot /= 2;
+
+			pot += curpot;
 		}
 		*potential = pot * XMAX * YMAX;
 	}
