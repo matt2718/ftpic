@@ -44,7 +44,7 @@ for i in range(len(energies)):
 	energies[i] /= norm
 	if wp > 0: times[i] *= wp
 
-	plt.plot(times[i], energies[i], label=names[i])
+	plt.plot(times[i], energies[i]/energies[i][0], label=names[i])
 
 if wp > 0:
 	plt.xlabel(r'$\omega_p t$', fontsize=20)
@@ -52,7 +52,7 @@ else:
 	plt.xlabel('Time', fontsize=14)
 
 plt.ylabel('Total Energy', fontsize=14)
-plt.axes().set_ylim(0.98, 1.1)
+plt.axes().set_ylim(0.99, 1.05)
 plt.legend()
 
 plt.tight_layout()

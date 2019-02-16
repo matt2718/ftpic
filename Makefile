@@ -8,7 +8,7 @@ all: oldpic ftpic oldpic2d ftpic2d
 
 .PHONY: debug
 debug: oldpic ftpic oldpic2d ftpic2d
-debug: CFLAGS += -g -O0
+debug: CFLAGS=-std=gnu99 -g -O0
 
 oldpic: oldpic.o common.o
 	$(CC) -o oldpic $(CFLAGS) $(LDFLAGS) oldpic.o common.o $(LDLIBS)

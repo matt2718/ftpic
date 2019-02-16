@@ -22,17 +22,17 @@ double DX, DY; // spacing
 
 // particle number and properties
 int PART_NUM = 10000;
-const double PART_MASS = 0.5;
-const double PART_CHARGE = -2.0;
+const double PART_MASS = 1.0;
+const double PART_CHARGE = -3.0;
 const double EPS_0 = 1.0;
 
 double OMEGA_P;
 
-const double BEAM_SPEED = 16.0;
+const double BEAM_SPEED = 8.0;
 const double V_TH = 4.0; // sqrt(kt/m)
 
 // wave periods per system length for landau damping
-const int LANDAU_MODE = 2;
+const int LANDAU_MODE = 3;
 const double PERTURB_AMPL = 0.25;
 
 const int WAVE_MODE = 9;

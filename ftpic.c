@@ -3,11 +3,8 @@
 #include <string.h>
 #include <math.h>
 #include <time.h>
-#include <omp.h>
 #include <fftw3.h>
-
 #include <qdsp.h>
-
 #include "common.h"
 
 // fft plans and buffers

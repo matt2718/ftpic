@@ -3,11 +3,8 @@
 #include <string.h>
 #include <math.h>
 #include <time.h>
-#include <omp.h>
 #include <fftw3.h>
-
 #include <qdsp.h>
-
 #include "common.h"
 
 // deposition buffer
@@ -31,6 +28,21 @@ void vHalfPush(double *v, double *ePart, int forward);
 double kineticEnergy(double *v);
 double momentum(double *v);
 void vDist();
+
+double getmax(double *x, int n, int sign) {
+	double max = x[0];
+	for (int i = 1; i < n; i++) {
+		if (sign * x[i] > sign * max) max = x[i];
+	}
+	return max;
+}
+int getmaxi(double *x, int n, int sign) {
+	int imax = 0;
+	for (int i = 1; i < n; i++) {
+		if (sign * x[i] > sign * x[imax]) imax = i;
+	}
+	return imax;
+}
 
 int main(int argc, char **argv) {
 	double *x;
@@ -77,7 +89,7 @@ int main(int argc, char **argv) {
 	fields(rho, eField, phi, NULL);
 
 	interpField(x, eField, ePart);
-	vHalfPush(v, eField, 0); // push backwards
+	vHalfPush(v, ePart, 0); // push backwards
 
 	int open = 1;
 
@@ -95,7 +107,7 @@ int main(int argc, char **argv) {
 		fields(rho, eField, phi, &potential);
 
 		interpField(x, eField, ePart);
-		vHalfPush(v, eField, 1);
+		vHalfPush(v, ePart, 1);
 
 		if (phasePlot)
 			open = qdspUpdateIfReady(phasePlot, x, v, color, PART_NUM);
@@ -122,7 +134,7 @@ int main(int argc, char **argv) {
 		}
 
 		//interpField(x, eField, ePart);
-		vHalfPush(v, eField, 1);
+		vHalfPush(v, ePart, 1);
 		xPush(x, v);
 	}
 	clock_gettime(CLOCK_MONOTONIC, &time2);
